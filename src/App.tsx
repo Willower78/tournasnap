@@ -21,7 +21,7 @@ const ALL_MODELS: ModelTarget[] = [
     id: 'gemini-flash',
     name: 'Gemini 2.0 / 3.1 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-2.0-flash-001',
+    modelString: 'google/gemini-flash-1.5',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
     badge: '1M Context',
     role: 'Master Synthesizer'
@@ -342,7 +342,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-001',
+          model: 'google/gemini-flash-1.5',
           max_tokens: 3000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
