@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Zap, Trophy, Calendar, Clock, MapPin, Edit3, AlertTriangle, CheckCircle, 
   Share2, Printer, Globe, Shield, RefreshCw, Plus, Users, Trash2, 
-  ArrowRight, Play, Eye, Sparkles, Check, DollarSign, Copy, ChevronDown, Layers
+  ArrowRight, Play, Eye, Sparkles, Check, DollarSign, Copy, ChevronDown, Layers, Swords
 } from 'lucide-react';
+import Arena from './Arena';
 
 type Lang = 'sv' | 'en' | 'de' | 'es' | 'fr' | 'it' | 'nl' | 'da';
 type Mode = 'cup' | 'league';
@@ -576,7 +577,7 @@ export default function App() {
   const [selectedSport, setSelectedSport] = useState<string>('football');
   const currentSport = ALL_SPORTS[selectedSport] || ALL_SPORTS.football;
 
-  const [activeTab, setActiveTab] = useState<'setup' | 'view' | 'live' | 'print' | 'pro'>('setup');
+  const [activeTab, setActiveTab] = useState<'setup' | 'view' | 'live' | 'print' | 'pro' | 'arena'>('arena');
 
   const [divisions, setDivisions] = useState<string[]>(["Division 1", "Division 2"]);
   const [activeDivision, setActiveDivision] = useState<string>("Division 1");
@@ -609,7 +610,6 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Check URL params for Stripe return status
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     if (query.get('payment') === 'success') {
@@ -620,7 +620,6 @@ export default function App() {
     }
   }, []);
 
-  // Real Stripe Checkout Trigger
   const handleStripeCheckout = async (planName: string, basePriceVal: number) => {
     setIsCheckingOut(true);
     showToast('Laddar säker Stripe Checkout...');
@@ -641,14 +640,11 @@ export default function App() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        // Fallback for local testing if API endpoint isn't deployed yet
-        console.warn('API Error, activating mock pro mode:', data.error);
         setIsPro(true);
         showToast('🚀 Pro aktiverat (lokalt testläge)!');
         setActiveTab('view');
       }
     } catch (err) {
-      console.warn('Backend endpoint unreachable, activating mock mode for preview.');
       setIsPro(true);
       showToast('🚀 Pro aktiverat (lokalt testläge)!');
       setActiveTab('view');
@@ -702,7 +698,6 @@ export default function App() {
     showToast(`➕ ${newDivName} skapad!`);
   };
 
-  // Match Generator
   const generateEngine = () => {
     const courts = Array.from({ length: numCourts }, (_, i) => `${currentSport.courtLabel} ${i + 1}`);
     const [startH, startM] = startTime.split(':').map(Number);
@@ -943,12 +938,12 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
-              <span>TournaSnap</span>
+              <span>TournaSnap & VibeCoder</span>
               <span className={`text-[10px] uppercase font-mono px-2 py-0.5 border rounded-full ${currentSport.badgeColor}`}>
                 {currentSport.name}
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Instant Brackets & Leagues • tournasnap.com</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Instant Brackets, Leagues & AI Multi-Coder Arena</p>
           </div>
         </div>
 
@@ -1037,9 +1032,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="max-w-6xl w-full mx-auto px-4 pt-4 flex gap-2">
+      {/* Tabs including AI Arena */}
+      <div className="max-w-6xl w-full mx-auto px-4 pt-4 flex gap-2 overflow-x-auto">
         {[
+          { id: 'arena', label: '⚔️ AI Arena', icon: Swords, highlight: true },
           { id: 'setup', label: d.tabSetup, icon: Users },
           { id: 'view', label: formatMode === 'cup' ? d.tabBracket : d.tabLeague, icon: formatMode === 'cup' ? Trophy : Layers },
           { id: 'live', label: d.tabLive, icon: Eye },
@@ -1049,9 +1045,11 @@ export default function App() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 flex-shrink-0 ${
               activeTab === tab.id 
                 ? 'bg-slate-100 text-slate-950 shadow-lg' 
+                : tab.highlight
+                ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-600/50'
                 : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
             }`}
           >
@@ -1064,11 +1062,16 @@ export default function App() {
       {/* Main View */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6">
 
+        {/* ARENA TAB */}
+        {activeTab === 'arena' && (
+          <Arena onAdoptCode={(code) => {
+            showToast('🚀 Adopted code into memory!');
+          }} />
+        )}
+
         {/* 1. SETUP TAB */}
         {activeTab === 'setup' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-900/90 border border-slate-800 p-6 rounded-3xl shadow-2xl">
-            
-            {/* Left: Divisions & Teams */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
@@ -1140,7 +1143,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right: Settings */}
             <div className="space-y-4 flex flex-col justify-between">
               <div className="space-y-4">
                 <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
@@ -1226,7 +1228,6 @@ export default function App() {
                 <span>{d.generate}</span>
               </button>
             </div>
-
           </div>
         )}
 
@@ -1254,7 +1255,6 @@ export default function App() {
                   </span>
                 </div>
 
-                {/* Standings */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
                   <div className="p-4 border-b border-slate-800 flex items-center justify-between">
                     <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1294,7 +1294,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Match Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {matches.filter(m => m.division === activeDivision).map(m => (
                     <div key={m.id} className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex items-center justify-between text-xs hover:border-slate-700 transition">
@@ -1332,10 +1331,8 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-
               </div>
             ) : (
-              /* Cup Bracket */
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-3">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -1466,7 +1463,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs font-mono text-emerald-400">
-              <span className="truncate flex-1">https://tournasnap.com/live/snap-8831</span>
+              <span className="truncate flex-1">https://tournasnap-tld-sia.vercel.app</span>
               <button 
                 onClick={() => showToast('📋 Länk kopierad!')}
                 className="p-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition"
