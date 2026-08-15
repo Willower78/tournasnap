@@ -18,9 +18,9 @@ interface ModelTarget {
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-3-flash',
-    name: 'Gemini 3.6 / 3.7 Flash',
+    name: 'Gemini 3.7 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-3.6-flash',
+    modelString: 'google/gemini-3.7-flash',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
     badge: 'Gemini 3 Series',
     role: 'Master Synthesizer'
@@ -78,12 +78,13 @@ interface ModelResult {
   errorMsg?: string;
 }
 
+// Fullständig sandbox som garanterat fångar upp alla komponenter
 function createSandboxHtml(codeString: string) {
   let clean = codeString
     .replace(/^```[a-z]*\n?/gm, '')
     .replace(/\n?```$/gm, '')
     .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
-    .replace(/export\s+default\s+/g, '')
+    .replace(/export\s+default\s+/g, 'window.__ExportedTarget = ')
     .replace(/export\s+/g, '');
 
   return `<!DOCTYPE html>
@@ -105,33 +106,21 @@ function createSandboxHtml(codeString: string) {
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
     
     try {
+      window.__ExportedTarget = null;
       ${clean}
 
-      let ExportedComponent = null;
-      const possibleNames = [
-        'App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 
-        'MatchSecretariat', 'MatchTimerDashboard', 'Component',
-        'MatchScoreboard', 'Timer', 'Dashboard'
-      ];
-
-      for (const name of possibleNames) {
-        if (typeof window[name] === 'function') {
-          ExportedComponent = window[name];
-          break;
+      let Target = window.__ExportedTarget;
+      if (!Target) {
+        const funcs = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML'));
+        if (funcs.length > 0) {
+          Target = window[funcs[funcs.length - 1]];
         }
       }
 
-      if (!ExportedComponent) {
-        const declared = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel'));
-        if (declared.length > 0) {
-          ExportedComponent = window[declared[declared.length - 1]];
-        }
-      }
-
-      if (ExportedComponent) {
-        ReactDOM.createRoot(document.getElementById('root')).render(<ExportedComponent />);
+      if (Target) {
+        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Target));
       } else {
-        document.getElementById('root').innerHTML = '<div class="p-4 text-slate-400 font-mono text-xs">Komponenten är kompilerad. Byt till "Kod"-läget för att granska.</div>';
+        document.getElementById('root').innerHTML = '<div class="p-4 text-emerald-400 font-mono text-xs">✅ Kod genererad. Växla till "Kod"-läget för att se källkoden.</div>';
       }
     } catch (err) {
       document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ ' + err.message + '</div>';
@@ -231,7 +220,7 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the component function 'App' or 'Scoreboard' or similar. 
+Export the component with 'export default function App() { ... }'.
 Output ONLY the clean executable code directly without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
@@ -251,7 +240,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 2500,
+            max_tokens: 3000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -309,7 +298,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
     setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar TypeScript-arkitektur och state-logik...');
 
     try {
-      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code directly.`;
+      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'export default function App()'.`;
       
       const logicRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -328,9 +317,9 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
       const upgradedLogicCode = logicData.choices?.[0]?.message?.content || baseCode;
 
       setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/2: Gemini 3 Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
+      setSwarmProgressText('✨ Steg 2/2: Gemini 3.7 Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
 
-      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code.`;
+      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code with 'export default function App()'.`;
 
       const uiRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -340,7 +329,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-3.6-flash',
+          model: 'google/gemini-3.7-flash',
           max_tokens: 3000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
@@ -652,7 +641,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
                     </div>
                   </div>
 
-                  {/* Main Display: Sandbox Preview or Code View */}
+                  {/* Main Display */}
                   <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 flex flex-col">
                     {res.status === 'idle' && (
                       <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 py-20">
