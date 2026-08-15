@@ -3,7 +3,7 @@ import {
   Zap, Trophy, Code2, Key, RefreshCw, Cpu, Check, 
   Copy, Download, Sparkles, Rocket, Bookmark, 
   Image as ImageIcon, Video, Swords, ExternalLink, Sliders,
-  Users, Flame, ArrowRight, ShieldCheck
+  Users, Flame
 } from 'lucide-react';
 
 interface ModelTarget {
@@ -14,59 +14,54 @@ interface ModelTarget {
   color: string;
   badge: string;
   role: string;
-  isFree?: boolean;
 }
 
+// Officiella och exakta OpenRouter endpoints
 const ALL_MODELS: ModelTarget[] = [
   {
-    id: 'deepseek-r1-free',
+    id: 'deepseek-r1',
     name: 'DeepSeek R1',
     provider: 'DeepSeek',
-    modelString: 'deepseek/deepseek-r1:free',
+    modelString: 'deepseek/deepseek-r1',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    badge: 'FREE • Reasoning',
-    role: 'Logik & Edge Cases',
-    isFree: true
+    badge: 'Reasoning Leader',
+    role: 'Logik & Edge Cases'
   },
   {
-    id: 'qwen-coder-free',
+    id: 'qwen-coder',
     name: 'Qwen 2.5 Coder 32B',
     provider: 'Alibaba',
-    modelString: 'qwen/qwen-2.5-coder-32b-instruct:free',
+    modelString: 'qwen/qwen-2.5-coder-32b-instruct',
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-    badge: 'FREE • Coder',
-    role: 'TypeScript & Arkitektur',
-    isFree: true
+    badge: 'Top Full-Stack',
+    role: 'TypeScript & Arkitektur'
   },
   {
-    id: 'llama-free',
+    id: 'llama-3-3',
     name: 'Llama 3.3 70B',
     provider: 'Meta',
-    modelString: 'meta-llama/llama-3.3-70b-instruct:free',
+    modelString: 'meta-llama/llama-3.3-70b-instruct',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    badge: 'FREE • Fast',
-    role: 'UI & Interaktioner',
-    isFree: true
+    badge: 'Ultra Fast',
+    role: 'UI & Interaktioner'
   },
   {
-    id: 'gemini-3-series',
-    name: 'Gemini 3.1 Flash',
+    id: 'gemini-flash',
+    name: 'Gemini 2.0 / 3 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-flash-latest',
+    modelString: 'google/gemini-2.0-flash-001',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
     badge: '1M Context',
-    role: 'Master Synthesizer',
-    isFree: false
+    role: 'Master Synthesizer'
   },
   {
-    id: 'mistral-free',
+    id: 'mistral-small',
     name: 'Mistral Small 24B',
     provider: 'Mistral AI',
-    modelString: 'mistralai/mistral-small-24b-instruct-2501:free',
+    modelString: 'mistralai/mistral-small-24b-instruct-2501',
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-    badge: 'FREE • Logic',
-    role: 'Validering & Stabilitet',
-    isFree: true
+    badge: 'Strict Logic',
+    role: 'Validering & Stabilitet'
   }
 ];
 
@@ -93,7 +88,7 @@ export default function App() {
   
   // Model selection
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'deepseek-r1-free', 'qwen-coder-free', 'llama-free'
+    'deepseek-r1', 'qwen-coder', 'llama-3-3'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -134,9 +129,9 @@ export default function App() {
     );
   };
 
-  const selectOnlyFree = () => {
-    setSelectedModelIds(ALL_MODELS.filter(m => m.isFree).map(m => m.id));
-    showToast('⚡ Alla gratismodeller valda!');
+  const selectAll = () => {
+    setSelectedModelIds(ALL_MODELS.map(m => m.id));
+    showToast('⚡ Alla 5 modeller valda!');
   };
 
   const copyText = (id: string, text: string) => {
@@ -192,7 +187,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey.trim()}`,
             'HTTP-Referer': window.location.origin,
-            'X-Title': 'VibeCoder Multi-AI Studio'
+            'X-Title': 'VibeCoder Swarm Studio'
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
@@ -258,7 +253,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'deepseek/deepseek-r1:free',
+          model: 'deepseek/deepseek-r1',
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -279,7 +274,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct:free',
+          model: 'qwen/qwen-2.5-coder-32b-instruct',
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
@@ -303,7 +298,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
   return (
     <div className="min-h-screen bg-[#080B10] text-slate-100 font-sans flex flex-col selection:bg-indigo-500/30">
       
-      {/* Top Header */}
+      {/* Header */}
       <header className="h-16 border-b border-slate-800/80 bg-slate-950/90 px-4 sm:px-8 flex items-center justify-between backdrop-blur-xl sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-500/20">
@@ -360,10 +355,10 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-300">Fas 1: Välj koncept-arkitekter ({selectedModelIds.length} aktiva):</span>
               <button
-                onClick={selectOnlyFree}
+                onClick={selectAll}
                 className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-lg hover:bg-cyan-500/20 transition"
               >
-                ⚡ Välj alla GRATIS
+                ⚡ Välj alla modeller
               </button>
             </div>
           </div>
@@ -428,7 +423,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           </div>
         </div>
 
-        {/* SWARM COLLABORATION PROGRESS BANNER */}
+        {/* SWARM PROGRESS */}
         {swarmStep !== 'idle' && (
           <div className="bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-cyan-900/40 border-2 border-indigo-500/50 rounded-3xl p-6 shadow-2xl space-y-3 animate-pulse">
             <div className="flex items-center justify-between">
@@ -451,7 +446,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           </div>
         )}
 
-        {/* FINAL MASTERPIECE CODE CANVAS (SYNTHESIZED CODE) */}
+        {/* MASTER CODE */}
         {finalMasterCode && (
           <div className="bg-gradient-to-b from-indigo-950/80 to-slate-900 border-2 border-emerald-500/60 rounded-3xl overflow-hidden shadow-2xl space-y-0">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
@@ -494,7 +489,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           </div>
         )}
 
-        {/* Phase 1 Comparison Grid */}
+        {/* Phase 1 Grid */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Swords className="w-4 h-4 text-indigo-400" />
@@ -509,7 +504,6 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
               return (
                 <div key={modelId} className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden flex flex-col shadow-2xl">
                   
-                  {/* Header */}
                   <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
@@ -533,7 +527,6 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                     )}
                   </div>
 
-                  {/* Code Area */}
                   <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 p-4 font-mono text-[11px] overflow-y-auto text-slate-300 leading-relaxed select-all">
                     {res.status === 'idle' && (
                       <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 py-20">
@@ -562,7 +555,6 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                     )}
                   </div>
 
-                  {/* Footer - The Swarm Trigger */}
                   {res.status === 'done' && (
                     <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
                       <button
