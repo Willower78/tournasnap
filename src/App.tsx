@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Zap, Trophy, Code2, Key, RefreshCw, Cpu, Check, 
   Copy, Download, Sparkles, Rocket, Bookmark, 
-  Image as ImageIcon, Video, Swords, ExternalLink, Sliders,
-  Users, Flame, Eye, Play
+  Swords, Users, Flame, Eye, AlertCircle
 } from 'lucide-react';
 
 interface ModelTarget {
@@ -16,12 +15,13 @@ interface ModelTarget {
   role: string;
 }
 
+// Stabilt verifierade OpenRouter ID:n
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-flash',
-    name: 'Gemini Flash',
+    name: 'Gemini 2.0 / 3.1 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-2.5-flash',
+    modelString: 'google/gemini-2.0-flash-001',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
     badge: '1M Context',
     role: 'Master Synthesizer'
@@ -34,15 +34,6 @@ const ALL_MODELS: ModelTarget[] = [
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
     badge: 'Top Full-Stack',
     role: 'TypeScript & Arkitektur'
-  },
-  {
-    id: 'mistral-small',
-    name: 'Mistral Small 24B',
-    provider: 'Mistral AI',
-    modelString: 'mistralai/mistral-small-24b-instruct-2501',
-    color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-    badge: 'Strict Logic',
-    role: 'Validering & Stabilitet'
   },
   {
     id: 'deepseek-chat',
@@ -61,6 +52,15 @@ const ALL_MODELS: ModelTarget[] = [
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
     badge: 'Ultra Fast',
     role: 'UI & Interaktioner'
+  },
+  {
+    id: 'mistral-small',
+    name: 'Mistral Small 24B',
+    provider: 'Mistral AI',
+    modelString: 'mistralai/mistral-small-24b-instruct-2501',
+    color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
+    badge: 'Strict Logic',
+    role: 'Validering & Stabilitet'
   }
 ];
 
@@ -79,7 +79,7 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Live React + Babel + Tailwind Sandbox Compiler
+// Sandbox Compiler med säker felhantering och auto-export
 function createSandboxHtml(codeString: string) {
   let clean = codeString
     .replace(/^```[a-z]*\n?/gm, '')
@@ -98,7 +98,7 @@ function createSandboxHtml(codeString: string) {
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
+    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
   </style>
 </head>
 <body>
@@ -107,27 +107,36 @@ function createSandboxHtml(codeString: string) {
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
     
     try {
+      let ExportedComponent = null;
       ${clean}
-      
-      const compKeys = ['App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 'MatchSecretariat', 'MatchTimerDashboard', 'Component'];
-      let TargetComp = null;
-      for (const k of compKeys) {
-        if (typeof window[k] !== 'undefined') { TargetComp = window[k]; break; }
-      }
-      if (!TargetComp) {
-        const funcs = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k));
-        if (funcs.length > 0) TargetComp = window[funcs[funcs.length - 1]];
+
+      const possibleNames = [
+        'App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 
+        'MatchSecretariat', 'MatchTimerDashboard', 'Component',
+        'MatchScoreboard', 'Timer', 'Dashboard'
+      ];
+
+      for (const name of possibleNames) {
+        if (typeof window[name] === 'function') {
+          ExportedComponent = window[name];
+          break;
+        }
       }
 
-      if (TargetComp) {
-        ReactDOM.createRoot(document.getElementById('root')).render(<TargetComp />);
+      if (!ExportedComponent) {
+        const declared = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel'));
+        if (declared.length > 0) {
+          ExportedComponent = window[declared[declared.length - 1]];
+        }
+      }
+
+      if (ExportedComponent) {
+        ReactDOM.createRoot(document.getElementById('root')).render(<ExportedComponent />);
       } else {
-        ReactDOM.createRoot(document.getElementById('root')).render(
-          <div className="p-4 text-emerald-400 font-mono text-xs">✅ Kod kompilerad och redo!</div>
-        );
+        document.getElementById('root').innerHTML = '<div class="p-4 text-slate-400 font-mono text-xs">Växla till "Kod"-läget för att se källkoden.</div>';
       }
     } catch (err) {
-      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ Preview Error: ' + err.message + '</div>';
+      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ ' + err.message + '</div>';
     }
   </script>
 </body>
@@ -140,7 +149,7 @@ export default function App() {
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'gemini-flash', 'qwen-coder', 'mistral-small'
+    'gemini-flash', 'qwen-coder', 'deepseek-chat'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
@@ -244,7 +253,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 3000,
+            max_tokens: 2500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -255,6 +264,13 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
         const data = await res.json();
         const endTime = performance.now();
         const latency = Math.round(endTime - startTime);
+
+        if (res.status === 402) {
+          throw new Error('Kräver OpenRouter credits (402 Payment Required).');
+        }
+        if (res.status === 404) {
+          throw new Error(`Modellen ${modelCfg.modelString} hittades inte på OpenRouter (404).`);
+        }
 
         if (data.choices && data.choices[0]?.message?.content) {
           let cleanCode = data.choices[0].message.content.trim();
@@ -292,7 +308,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
   // Phase 2 & 3: Swarm Synthesis
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
     setSwarmStep('analyzing');
-    setSwarmProgressText('🧠 Steg 1/2: Qwen Coder & Mistral optimerar TypeScript-arkitektur och state-logik...');
+    setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar TypeScript-arkitektur och state-logik...');
 
     try {
       const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code directly.`;
@@ -306,7 +322,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 3500,
+          max_tokens: 3000,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -326,8 +342,8 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          max_tokens: 3500,
+          model: 'google/gemini-2.0-flash-001',
+          max_tokens: 3000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
@@ -388,7 +404,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
       {/* Main Studio Canvas */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
         
-        {/* API Key Modal / Drawer */}
+        {/* API Key Drawer */}
         {showKeyInput && (
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center gap-3 shadow-2xl">
             <Key className="w-5 h-5 text-indigo-400 flex-shrink-0" />
@@ -403,7 +419,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           </div>
         )}
 
-        {/* Prompt Control Deck */}
+        {/* Prompt Deck */}
         <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 shadow-2xl space-y-5 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
@@ -500,7 +516,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           </div>
         )}
 
-        {/* MASTER CODE & LIVE PREVIEW CANVAS */}
+        {/* MASTERPIECE */}
         {finalMasterCode && (
           <div className="bg-gradient-to-b from-indigo-950/80 to-slate-900 border-2 border-emerald-500/60 rounded-3xl overflow-hidden shadow-2xl space-y-0">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
@@ -575,7 +591,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           </div>
         )}
 
-        {/* Phase 1 Comparison Grid with Live Sandbox Previews */}
+        {/* Phase 1 Comparison Grid */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Swords className="w-4 h-4 text-indigo-400" />
@@ -655,8 +671,9 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
                     )}
 
                     {res.status === 'error' && (
-                      <div className="p-4 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-2xl m-4">
-                        ⚠️ {res.errorMsg || 'Genereringen misslyckades'}
+                      <div className="p-4 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-2xl m-4 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>{res.errorMsg || 'Genereringen misslyckades'}</span>
                       </div>
                     )}
 
@@ -706,7 +723,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
 
       </main>
 
-      {/* Toast Notification */}
+      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-bold text-xs shadow-2xl flex items-center gap-2 z-50 animate-bounce">
           <Check className="w-4 h-4" />
