@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Zap, Trophy, Code2, CheckCircle2, Key,
-  RefreshCw, Cpu, Check, Layers, Copy, Shield
+  RefreshCw, Cpu, Check, Layers, Copy, Shield, Sparkles, Eye
 } from 'lucide-react';
 
 interface ModelTarget {
@@ -23,15 +23,15 @@ const ARENA_MODELS: ModelTarget[] = [
     badge: 'State of the Art'
   },
   {
-    id: 'deepseek',
-    name: 'DeepSeek Coder V2.5',
+    id: 'deepseek-v3',
+    name: 'DeepSeek V3 / Coder',
     provider: 'DeepSeek',
-    modelString: 'deepseek/deepseek-coder',
+    modelString: 'deepseek/deepseek-chat',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: 'Code Architect'
+    badge: 'Top Coder'
   },
   {
-    id: 'qwen',
+    id: 'qwen-coder',
     name: 'Qwen 2.5 Coder 32B',
     provider: 'Alibaba',
     modelString: 'qwen/qwen-2.5-coder-32b-instruct',
@@ -39,20 +39,12 @@ const ARENA_MODELS: ModelTarget[] = [
     badge: 'Full-Stack Logic'
   },
   {
-    id: 'mistral',
-    name: 'Codestral / Mistral Large',
+    id: 'mistral-large',
+    name: 'Mistral Large',
     provider: 'Mistral AI',
-    modelString: 'mistralai/codestral-2501',
+    modelString: 'mistralai/mistral-large-2407',
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-    badge: 'Fast & Concise'
-  },
-  {
-    id: 'kimi',
-    name: 'Kimi (Moonshot)',
-    provider: 'Moonshot AI',
-    modelString: 'moonshotai/moonshot-v1-32k',
-    color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    badge: 'Reasoning'
+    badge: 'Precise Logic'
   },
   {
     id: 'llama',
@@ -60,7 +52,7 @@ const ARENA_MODELS: ModelTarget[] = [
     provider: 'Meta',
     modelString: 'meta-llama/llama-3.3-70b-instruct',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    badge: 'Open Weight'
+    badge: 'Open-Weight Turbo'
   }
 ];
 
@@ -79,25 +71,22 @@ interface ArenaProps {
 export default function Arena({ onAdoptCode }: ArenaProps) {
   const [apiKey, setApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState('Bygg en modern timer- och resultattavla för matchsekretariat. Den ska ha stor nedräkningstimer med Start/Paus/Återställ, knappar för mål (+/-), periodvisare (Period 1, 2, 3), utvisningstimer och snygg mörk sportdesign med Tailwind CSS');
   
-  // Default selected: Claude, DeepSeek, Codestral
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'claude', 'deepseek', 'mistral'
+    'deepseek-v3', 'qwen-coder', 'llama'
   ]);
   
   const [results, setResults] = useState<Record<string, ModelResult>>({
     claude: { modelId: 'claude', code: '', status: 'idle' },
-    deepseek: { modelId: 'deepseek', code: '', status: 'idle' },
-    qwen: { modelId: 'qwen', code: '', status: 'idle' },
-    mistral: { modelId: 'mistral', code: '', status: 'idle' },
-    kimi: { modelId: 'kimi', code: '', status: 'idle' },
+    'deepseek-v3': { modelId: 'deepseek-v3', code: '', status: 'idle' },
+    'qwen-coder': { modelId: 'qwen-coder', code: '', status: 'idle' },
+    'mistral-large': { modelId: 'mistral-large', code: '', status: 'idle' },
     llama: { modelId: 'llama', code: '', status: 'idle' },
   });
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Load OpenRouter key from local storage on load
   useEffect(() => {
     const saved = localStorage.getItem('VIBECODER_OPENROUTER_KEY');
     if (saved) setApiKey(saved);
@@ -122,7 +111,7 @@ export default function Arena({ onAdoptCode }: ArenaProps) {
 
   const executeParallelArena = async () => {
     if (!prompt.trim()) return;
-    if (!apiKey) {
+    if (!apiKey.trim()) {
       setShowKeyInput(true);
       return;
     }
@@ -133,8 +122,8 @@ export default function Arena({ onAdoptCode }: ArenaProps) {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are a world-class principal React/TypeScript engineer. Build a complete, elegant, fully self-contained functional component using Tailwind CSS based on the user request. 
-Output clean, working code directly.`;
+    const systemPrompt = `You are a world-class principal React/TypeScript engineer. Build a complete, fully functional, beautifully styled single-file React component using Tailwind CSS based on the user request.
+Output ONLY the raw code directly.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ARENA_MODELS.find(m => m.id === modelId);
@@ -149,7 +138,7 @@ Output clean, working code directly.`;
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey.trim()}`,
             'HTTP-Referer': window.location.origin,
-            'X-Title': 'VibeCoder AI Arena'
+            'X-Title': 'VibeCoder Multi-AI Arena'
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
@@ -179,7 +168,8 @@ Output clean, working code directly.`;
             }
           }));
         } else {
-          throw new Error(data.error?.message || 'Generation failed');
+          const errMsg = data.error?.message || (data.error ? JSON.stringify(data.error) : 'Generation failed');
+          throw new Error(errMsg);
         }
       } catch (err: any) {
         setResults(prev => ({
@@ -211,10 +201,10 @@ Output clean, working code directly.`;
               <h2 className="text-sm font-black tracking-tight text-white flex items-center gap-2">
                 <span>Multi-AI Parallel Battleground</span>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 rounded-full">
-                  6 Top Models
+                  Live Racing
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-400">One prompt $\rightarrow$ parallel generation across Claude, DeepSeek, Mistral, Kimi, Qwen & Llama.</p>
+              <p className="text-[11px] text-slate-400">En prompt skickas samtidigt till alla valda modeller – jämför svarstid, arkitektur och kodkvalitet.</p>
             </div>
           </div>
 
@@ -240,7 +230,7 @@ Output clean, working code directly.`;
               placeholder="sk-or-v1-..."
               className="flex-1 bg-transparent text-xs text-white placeholder-slate-600 focus:outline-none font-mono"
             />
-            <span className="text-[10px] text-emerald-400 font-mono">Saved in localStorage</span>
+            <span className="text-[10px] text-emerald-400 font-mono">Sparad i localStorage</span>
           </div>
         )}
 
@@ -269,7 +259,7 @@ Output clean, working code directly.`;
             rows={2}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Type your feature or component request..."
+            placeholder="Beskriv vad du vill bygga..."
             className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl p-3.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none font-sans"
           />
           <button
@@ -283,7 +273,7 @@ Output clean, working code directly.`;
         </div>
       </div>
 
-      {/* Arena Grid: Side-by-Side Model Arena */}
+      {/* Arena Grid */}
       <div className={`grid grid-cols-1 ${selectedModelIds.length === 2 ? 'md:grid-cols-2' : selectedModelIds.length >= 3 ? 'md:grid-cols-3' : ''} gap-4`}>
         {selectedModelIds.map(modelId => {
           const modelCfg = ARENA_MODELS.find(m => m.id === modelId)!;
@@ -321,19 +311,19 @@ Output clean, working code directly.`;
                 {res.status === 'idle' && (
                   <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2">
                     <Code2 className="w-8 h-8 opacity-40" />
-                    <span>Waiting for prompt dispatch</span>
+                    <span>Redo för dispatch</span>
                   </div>
                 )}
 
                 {res.status === 'generating' && (
                   <div className="h-full flex flex-col items-center justify-center text-indigo-400 space-y-2">
                     <RefreshCw className="w-8 h-8 animate-spin" />
-                    <span className="text-xs font-sans">Generating full codebase...</span>
+                    <span className="text-xs font-sans">Genererar kod parallellt...</span>
                   </div>
                 )}
 
                 {res.status === 'error' && (
-                  <div className="text-red-400 text-xs p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                  <div className="text-red-400 text-xs p-3 bg-red-500/10 border border-red-500/30 rounded-xl leading-relaxed">
                     ⚠️ {res.errorMsg || 'Generation failed'}
                   </div>
                 )}
@@ -353,7 +343,7 @@ Output clean, working code directly.`;
                     className="text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1.5 transition p-1"
                   >
                     {copiedId === modelId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedId === modelId ? 'Copied' : 'Copy'}</span>
+                    <span>{copiedId === modelId ? 'Kopierad' : 'Kopiera kod'}</span>
                   </button>
 
                   <button
@@ -361,7 +351,7 @@ Output clean, working code directly.`;
                     className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 active:scale-95"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Adopt Version</span>
+                    <span>Välj som vinnare</span>
                   </button>
                 </div>
               )}
