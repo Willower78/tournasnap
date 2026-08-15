@@ -46,11 +46,11 @@ const ALL_MODELS: ModelTarget[] = [
   },
   {
     id: 'gemini-flash-free',
-    name: 'Gemini 2.0 Flash',
+    name: 'Gemini 3.1 Flash / Pro',
     provider: 'Google',
-    modelString: 'google/gemini-2.0-flash-exp:free',
+    modelString: 'google/gemini-flash-latest',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: '100% FREE • 1M Context',
+    badge: 'Gemini 3 Series',
     isFree: true
   },
   {
