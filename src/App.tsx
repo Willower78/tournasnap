@@ -16,16 +16,15 @@ interface ModelTarget {
   role: string;
 }
 
-// Officiella och exakta OpenRouter endpoints
 const ALL_MODELS: ModelTarget[] = [
   {
-    id: 'deepseek-r1',
-    name: 'DeepSeek R1',
-    provider: 'DeepSeek',
-    modelString: 'deepseek/deepseek-r1',
-    color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    badge: 'Reasoning Leader',
-    role: 'Logik & Edge Cases'
+    id: 'gemini-flash',
+    name: 'Gemini Flash',
+    provider: 'Google',
+    modelString: 'google/gemini-2.5-flash',
+    color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
+    badge: '1M Context',
+    role: 'Master Synthesizer'
   },
   {
     id: 'qwen-coder',
@@ -37,24 +36,6 @@ const ALL_MODELS: ModelTarget[] = [
     role: 'TypeScript & Arkitektur'
   },
   {
-    id: 'llama-3-3',
-    name: 'Llama 3.3 70B',
-    provider: 'Meta',
-    modelString: 'meta-llama/llama-3.3-70b-instruct',
-    color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    badge: 'Ultra Fast',
-    role: 'UI & Interaktioner'
-  },
-  {
-    id: 'gemini-flash',
-    name: 'Gemini 2.0 / 3 Flash',
-    provider: 'Google',
-    modelString: 'google/gemini-2.0-flash-001',
-    color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: '1M Context',
-    role: 'Master Synthesizer'
-  },
-  {
     id: 'mistral-small',
     name: 'Mistral Small 24B',
     provider: 'Mistral AI',
@@ -62,6 +43,24 @@ const ALL_MODELS: ModelTarget[] = [
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
     badge: 'Strict Logic',
     role: 'Validering & Stabilitet'
+  },
+  {
+    id: 'deepseek-chat',
+    name: 'DeepSeek V3 / Coder',
+    provider: 'DeepSeek',
+    modelString: 'deepseek/deepseek-chat',
+    color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
+    badge: 'High Speed Logic',
+    role: 'Logik & Edge Cases'
+  },
+  {
+    id: 'llama-3-3',
+    name: 'Llama 3.3 70B',
+    provider: 'Meta',
+    modelString: 'meta-llama/llama-3.3-70b-instruct',
+    color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
+    badge: 'Ultra Fast',
+    role: 'UI & Interaktioner'
   }
 ];
 
@@ -81,14 +80,13 @@ interface ModelResult {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'code' | 'image' | 'video'>('code');
   const [apiKey, setApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
-  // Model selection
+  // Standard 3 aktiva
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'deepseek-r1', 'qwen-coder', 'llama-3-3'
+    'gemini-flash', 'qwen-coder', 'mistral-small'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -97,9 +95,6 @@ export default function App() {
   const [swarmStep, setSwarmStep] = useState<'idle' | 'analyzing' | 'polishing' | 'synthesizing' | 'done'>('idle');
   const [swarmProgressText, setSwarmProgressText] = useState('');
   const [finalMasterCode, setFinalMasterCode] = useState('');
-  const [selectedBaseModel, setSelectedBaseModel] = useState<string | null>(null);
-
-  // Toast
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -131,7 +126,7 @@ export default function App() {
 
   const selectAll = () => {
     setSelectedModelIds(ALL_MODELS.map(m => m.id));
-    showToast('⚡ Alla 5 modeller valda!');
+    showToast('⚡ Alla modeller valda!');
   };
 
   const copyText = (id: string, text: string) => {
@@ -191,6 +186,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
+            max_tokens: 3000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -235,15 +231,13 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
     await Promise.allSettled(promises);
   };
 
-  // Phase 2 & 3: Multi-AI Swarm Synthesis
+  // Phase 2 & 3: Swarm Synthesis
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
-    setSelectedBaseModel(baseModelId);
     setSwarmStep('analyzing');
-    setSwarmProgressText('🧠 Steg 1/3: DeepSeek R1 analyserar logik, state-hantering och edge-cases...');
+    setSwarmProgressText('🧠 Steg 1/2: Qwen Coder & Mistral optimerar TypeScript-arkitektur och state-logik...');
 
     try {
-      // Step 1: Logic & edge cases review
-      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, edge cases, error resilience, and interactive features while keeping the overall design. Return the upgraded code directly.`;
+      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code directly.`;
       
       const logicRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -253,7 +247,8 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'deepseek/deepseek-r1',
+          model: 'qwen/qwen-2.5-coder-32b-instruct',
+          max_tokens: 3500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -261,10 +256,9 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
       const upgradedLogicCode = logicData.choices?.[0]?.message?.content || baseCode;
 
       setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/3: Qwen Coder & Llama förfinar Tailwind UI, micro-animationer & TypeScript-typer...');
+      setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
 
-      // Step 2: UI/UX & TypeScript strictness
-      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, ensure dark-mode sleekness, micro-interactions, and perfect TypeScript interfaces. Return clean code.`;
+      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code.`;
 
       const uiRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -274,7 +268,8 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct',
+          model: 'google/gemini-2.5-flash',
+          max_tokens: 3500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
@@ -461,7 +456,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                       Produktionsklar
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-400">Logik från DeepSeek R1 + UI från Gemini/Llama + TS från Qwen Coder</p>
+                  <p className="text-[11px] text-slate-400">Arkitektur från Qwen + Logik från Mistral + UI från Gemini Flash</p>
                 </div>
               </div>
 
