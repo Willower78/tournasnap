@@ -15,15 +15,14 @@ interface ModelTarget {
   role: string;
 }
 
-// Stabilt verifierade OpenRouter ID:n
 const ALL_MODELS: ModelTarget[] = [
   {
-    id: 'gemini-flash',
-    name: 'Gemini 2.0 / 3.1 Flash',
+    id: 'gemini-3-flash',
+    name: 'Gemini 3.6 / 3.7 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-flash-1.5',
+    modelString: 'google/gemini-3.6-flash',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: '1M Context',
+    badge: 'Gemini 3 Series',
     role: 'Master Synthesizer'
   },
   {
@@ -79,7 +78,6 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Sandbox Compiler med säker felhantering och auto-export
 function createSandboxHtml(codeString: string) {
   let clean = codeString
     .replace(/^```[a-z]*\n?/gm, '')
@@ -107,9 +105,9 @@ function createSandboxHtml(codeString: string) {
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
     
     try {
-      let ExportedComponent = null;
       ${clean}
 
+      let ExportedComponent = null;
       const possibleNames = [
         'App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 
         'MatchSecretariat', 'MatchTimerDashboard', 'Component',
@@ -133,7 +131,7 @@ function createSandboxHtml(codeString: string) {
       if (ExportedComponent) {
         ReactDOM.createRoot(document.getElementById('root')).render(<ExportedComponent />);
       } else {
-        document.getElementById('root').innerHTML = '<div class="p-4 text-slate-400 font-mono text-xs">Växla till "Kod"-läget för att se källkoden.</div>';
+        document.getElementById('root').innerHTML = '<div class="p-4 text-slate-400 font-mono text-xs">Komponenten är kompilerad. Byt till "Kod"-läget för att granska.</div>';
       }
     } catch (err) {
       document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ ' + err.message + '</div>';
@@ -149,7 +147,7 @@ export default function App() {
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'gemini-flash', 'qwen-coder', 'deepseek-chat'
+    'gemini-3-flash', 'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
@@ -269,7 +267,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           throw new Error('Kräver OpenRouter credits (402 Payment Required).');
         }
         if (res.status === 404) {
-          throw new Error(`Modellen ${modelCfg.modelString} hittades inte på OpenRouter (404).`);
+          throw new Error(`Modellen ${modelCfg.modelString} hittades inte (404).`);
         }
 
         if (data.choices && data.choices[0]?.message?.content) {
@@ -330,7 +328,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
       const upgradedLogicCode = logicData.choices?.[0]?.message?.content || baseCode;
 
       setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
+      setSwarmProgressText('✨ Steg 2/2: Gemini 3 Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
 
       const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code.`;
 
@@ -342,7 +340,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-flash-1.5',
+          model: 'google/gemini-3.6-flash',
           max_tokens: 3000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
@@ -628,7 +626,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
                               currentView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                             }`}
                           >
-                            <Eye className="w-3 h-3" /> Preview
+                            <Eye className="w-3.5 h-3.5" /> Preview
                           </button>
                           <button
                             onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'code' }))}
@@ -636,14 +634,14 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
                               currentView === 'code' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
                             }`}
                           >
-                            <Code2 className="w-3 h-3" /> Kod
+                            <Code2 className="w-3.5 h-3.5" /> Kod
                           </button>
                         </div>
                       )}
 
                       {res.status === 'generating' && (
                         <span className="text-indigo-400 font-mono text-[11px] animate-pulse flex items-center gap-1">
-                          <RefreshCw className="w-3 h-3 animate-spin" /> Skapar...
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Skapar...
                         </span>
                       )}
                       {res.status === 'done' && (
