@@ -3,7 +3,7 @@ import {
   Zap, Trophy, Code2, Key, RefreshCw, Cpu, Check, 
   Copy, Download, Sparkles, Rocket, Bookmark, 
   Image as ImageIcon, Video, Swords, ExternalLink, Sliders,
-  Users, Flame
+  Users, Flame, Eye, Play
 } from 'lucide-react';
 
 interface ModelTarget {
@@ -79,19 +79,74 @@ interface ModelResult {
   errorMsg?: string;
 }
 
+// Live React + Babel + Tailwind Sandbox Compiler
+function createSandboxHtml(codeString: string) {
+  let clean = codeString
+    .replace(/^```[a-z]*\n?/gm, '')
+    .replace(/\n?```$/gm, '')
+    .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
+    .replace(/export\s+default\s+/g, '')
+    .replace(/export\s+/g, '');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+    
+    try {
+      ${clean}
+      
+      const compKeys = ['App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 'MatchSecretariat', 'MatchTimerDashboard', 'Component'];
+      let TargetComp = null;
+      for (const k of compKeys) {
+        if (typeof window[k] !== 'undefined') { TargetComp = window[k]; break; }
+      }
+      if (!TargetComp) {
+        const funcs = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k));
+        if (funcs.length > 0) TargetComp = window[funcs[funcs.length - 1]];
+      }
+
+      if (TargetComp) {
+        ReactDOM.createRoot(document.getElementById('root')).render(<TargetComp />);
+      } else {
+        ReactDOM.createRoot(document.getElementById('root')).render(
+          <div className="p-4 text-emerald-400 font-mono text-xs">✅ Kod kompilerad och redo!</div>
+        );
+      }
+    } catch (err) {
+      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ Preview Error: ' + err.message + '</div>';
+    }
+  </script>
+</body>
+</html>`;
+}
+
 export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
-  // Standard 3 aktiva
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
     'gemini-flash', 'qwen-coder', 'mistral-small'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
+  const [masterView, setMasterView] = useState<'preview' | 'code'>('preview');
 
-  // Swarm Synthesis State
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [swarmStep, setSwarmStep] = useState<'idle' | 'analyzing' | 'polishing' | 'synthesizing' | 'done'>('idle');
   const [swarmProgressText, setSwarmProgressText] = useState('');
   const [finalMasterCode, setFinalMasterCode] = useState('');
@@ -107,10 +162,13 @@ export default function App() {
     if (saved) setApiKey(saved);
 
     const initialResults: Record<string, ModelResult> = {};
+    const initialViews: Record<string, 'preview' | 'code'> = {};
     ALL_MODELS.forEach(m => {
       initialResults[m.id] = { modelId: m.id, code: '', status: 'idle' };
+      initialViews[m.id] = 'preview';
     });
     setResults(initialResults);
+    setCardViews(initialViews);
   }, []);
 
   const saveKey = (val: string) => {
@@ -147,7 +205,7 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Phase 1: Parallel Dispatch
+  // Phase 1: Parallel Generation
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -165,9 +223,9 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an elite TypeScript React and Tailwind CSS engineer.
-Write a complete, single-file, self-contained functional component based on the user prompt.
-Output ONLY valid React TypeScript code directly without markdown backticks or explanations.`;
+    const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
+Name the component function 'App' or 'Scoreboard' or similar. 
+Output ONLY the clean executable code directly without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -282,6 +340,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
 
       setSwarmStep('done');
       setFinalMasterCode(masterCode);
+      setMasterView('preview');
       showToast('🏆 Master Synthesizer har sammanställt den ultimata komponenten!');
 
     } catch (err: any) {
@@ -306,7 +365,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                 <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Kollektiv AI-syntes av vinnande design</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Live Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
@@ -441,7 +500,7 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
           </div>
         )}
 
-        {/* MASTER CODE */}
+        {/* MASTER CODE & LIVE PREVIEW CANVAS */}
         {finalMasterCode && (
           <div className="bg-gradient-to-b from-indigo-950/80 to-slate-900 border-2 border-emerald-500/60 rounded-3xl overflow-hidden shadow-2xl space-y-0">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
@@ -456,35 +515,67 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                       Produktionsklar
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-400">Arkitektur från Qwen + Logik från Mistral + UI från Gemini Flash</p>
+                  <p className="text-[11px] text-slate-400">Logik + UI + TypeScript sammanslaget till ett mästerverk</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
+                <div className="flex bg-slate-900 border border-slate-700 rounded-xl p-1">
+                  <button
+                    onClick={() => setMasterView('preview')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      masterView === 'preview' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Live Preview</span>
+                  </button>
+                  <button
+                    onClick={() => setMasterView('code')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                      masterView === 'code' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Code2 className="w-3.5 h-3.5" />
+                    <span>Kod</span>
+                  </button>
+                </div>
+
                 <button
                   onClick={() => downloadFile('MasterSwarmComponent', finalMasterCode)}
                   className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Ladda ner .tsx</span>
+                  <span>Ladda ner</span>
                 </button>
                 <button
                   onClick={() => copyText('master', finalMasterCode)}
                   className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
                 >
                   {copiedId === 'master' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedId === 'master' ? 'Kopierad!' : 'Kopiera Slutkod'}</span>
+                  <span>Kopiera</span>
                 </button>
               </div>
             </div>
 
-            <div className="p-5 bg-slate-950 font-mono text-xs text-slate-200 max-h-[550px] overflow-y-auto leading-relaxed select-all">
-              <pre className="whitespace-pre-wrap">{finalMasterCode}</pre>
+            <div className="min-h-[420px] max-h-[550px] bg-slate-950 flex flex-col">
+              {masterView === 'preview' ? (
+                <iframe
+                  title="Master Live Preview"
+                  srcDoc={createSandboxHtml(finalMasterCode)}
+                  className="w-full flex-1 min-h-[450px] border-none rounded-b-3xl bg-slate-900"
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <div className="p-5 font-mono text-xs text-slate-200 max-h-[550px] overflow-y-auto leading-relaxed select-all">
+                  <pre className="whitespace-pre-wrap">{finalMasterCode}</pre>
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Phase 1 Grid */}
+        {/* Phase 1 Comparison Grid with Live Sandbox Previews */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Swords className="w-4 h-4 text-indigo-400" />
@@ -495,10 +586,12 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
             {selectedModelIds.map(modelId => {
               const modelCfg = ALL_MODELS.find(m => m.id === modelId)!;
               const res = results[modelId] || { status: 'idle', code: '' };
+              const currentView = cardViews[modelId] || 'preview';
 
               return (
                 <div key={modelId} className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden flex flex-col shadow-2xl">
                   
+                  {/* Header */}
                   <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
@@ -510,19 +603,43 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                       <span className="text-[10px] font-mono text-slate-500">{modelCfg.provider}</span>
                     </div>
 
-                    {res.status === 'generating' && (
-                      <span className="text-indigo-400 font-mono text-[11px] animate-pulse flex items-center gap-1.5">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Skapar...
-                      </span>
-                    )}
-                    {res.status === 'done' && (
-                      <span className="text-emerald-400 font-mono text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
-                        ⚡ {res.latencyMs}ms
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {res.status === 'done' && (
+                        <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+                          <button
+                            onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'preview' }))}
+                            className={`p-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                              currentView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <Eye className="w-3 h-3" /> Preview
+                          </button>
+                          <button
+                            onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'code' }))}
+                            className={`p-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                              currentView === 'code' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <Code2 className="w-3 h-3" /> Kod
+                          </button>
+                        </div>
+                      )}
+
+                      {res.status === 'generating' && (
+                        <span className="text-indigo-400 font-mono text-[11px] animate-pulse flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Skapar...
+                        </span>
+                      )}
+                      {res.status === 'done' && (
+                        <span className="text-emerald-400 font-mono text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                          ⚡ {res.latencyMs}ms
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 p-4 font-mono text-[11px] overflow-y-auto text-slate-300 leading-relaxed select-all">
+                  {/* Main Display: Sandbox Preview or Code View */}
+                  <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 flex flex-col">
                     {res.status === 'idle' && (
                       <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 py-20">
                         <Code2 className="w-10 h-10 opacity-30" />
@@ -538,18 +655,28 @@ Output ONLY valid React TypeScript code directly without markdown backticks or e
                     )}
 
                     {res.status === 'error' && (
-                      <div className="text-red-400 text-xs p-4 bg-red-500/10 border border-red-500/30 rounded-2xl">
+                      <div className="p-4 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-2xl m-4">
                         ⚠️ {res.errorMsg || 'Genereringen misslyckades'}
                       </div>
                     )}
 
                     {res.status === 'done' && (
-                      <pre className="whitespace-pre-wrap font-mono">
-                        {res.code}
-                      </pre>
+                      currentView === 'preview' ? (
+                        <iframe
+                          title={`${modelCfg.name} Preview`}
+                          srcDoc={createSandboxHtml(res.code)}
+                          className="w-full flex-1 min-h-[380px] border-none bg-slate-950"
+                          sandbox="allow-scripts allow-same-origin"
+                        />
+                      ) : (
+                        <div className="p-4 font-mono text-[11px] overflow-y-auto text-slate-300 leading-relaxed select-all">
+                          <pre className="whitespace-pre-wrap">{res.code}</pre>
+                        </div>
+                      )
                     )}
                   </div>
 
+                  {/* Footer - The Swarm Trigger */}
                   {res.status === 'done' && (
                     <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
                       <button
