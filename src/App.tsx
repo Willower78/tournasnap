@@ -26,20 +26,20 @@ interface ModelResult {
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-flash',
-    name: 'Gemini 2.0 Flash (Free/Pro)',
+    name: 'Gemini 2.5 / 3 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-2.0-flash-exp:free',
+    modelString: 'google/gemini-2.5-flash',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: 'Free Tier',
+    badge: '1M Context',
     role: 'Master Synthesizer'
   },
   {
     id: 'qwen-coder',
     name: 'Qwen 2.5 Coder 32B',
     provider: 'Alibaba',
-    modelString: 'qwen/qwen-2.5-coder-32b-instruct:free',
+    modelString: 'qwen/qwen-2.5-coder-32b-instruct',
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-    badge: 'Free Tier',
+    badge: 'Top Full-Stack',
     role: 'TypeScript & Arkitektur'
   },
   {
@@ -53,11 +53,11 @@ const ALL_MODELS: ModelTarget[] = [
   },
   {
     id: 'llama-3-3',
-    name: 'Llama 3.3 70B (Free)',
+    name: 'Llama 3.3 70B',
     provider: 'Meta',
-    modelString: 'meta-llama/llama-3.3-70b-instruct:free',
+    modelString: 'meta-llama/llama-3.3-70b-instruct',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    badge: 'Free Tier',
+    badge: 'Ultra Fast',
     role: 'UI & Interaktioner'
   },
   {
@@ -78,17 +78,22 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Direktsandbox utan CSP/data-URI-blockering
+// Rengöring och Sandbox HTML
 function generateSandbox(rawCode: string): string {
-  let cleanCode = rawCode
+  // 1. Tvätta bort markdown
+  let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
-    .replace(/\n?```$/gm, '')
-    .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
-    .replace(/import\s+['"][^'"]+['"];?/g, '')
-    .replace(/export\s+default\s+/g, '')
-    .replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+    .replace(/\n?```$/gm, '');
 
-  const safeJson = JSON.stringify(cleanCode);
+  // 2. Tvätta bort alla former av imports (även flerradiga) direkt i JavaScript
+  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
+
+  // 3. Tvätta bort export default / export
+  code = code.replace(/export\s+default\s+/g, '');
+  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+
+  const safeJson = JSON.stringify(code);
 
   return `<!DOCTYPE html>
 <html>
@@ -107,10 +112,9 @@ function generateSandbox(rawCode: string): string {
   <div id="root"></div>
 
   <script>
-    // React Hooks globalt
+    // Globals
     var { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    // SVG Ikon Mock
     function makeIcon(name) {
       return function(props) {
         var size = props && props.size ? props.size : 16;
@@ -135,16 +139,15 @@ function generateSandbox(rawCode: string): string {
 
     window.onload = function() {
       try {
-        var sourceCode = ${safeJson};
+        var cleanedSource = ${safeJson};
 
         // Babel transpilering direkt i webbläsaren
-        var transpiled = Babel.transform(sourceCode, {
+        var transpiled = Babel.transform(cleanedSource, {
           presets: ['react', 'typescript'],
           filename: 'app.tsx'
         }).code;
 
-        // Evaluerar koden och returnerar den definierade komponenten
-        var evalFunction = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
+        var evalScope = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
           transpiled + "\\n;\\n" +
           "if (typeof App !== 'undefined') return App;\\n" +
           "if (typeof Scoreboard !== 'undefined') return Scoreboard;\\n" +
@@ -155,10 +158,10 @@ function generateSandbox(rawCode: string): string {
           "return null;"
         );
 
-        var TargetComponent = evalFunction(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback);
+        var TargetComp = evalScope(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback);
 
-        if (TargetComponent && typeof TargetComponent === 'function') {
-          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TargetComponent));
+        if (TargetComp && typeof TargetComp === 'function') {
+          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TargetComp));
         } else {
           document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Byt till "Kod"-läget för att se källkoden.</div>';
         }
@@ -242,7 +245,7 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Parallell Generering
+  // Parallell Körning
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -260,9 +263,9 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the component 'App' or 'Scoreboard'.
-Output ONLY valid React executable code without markdown description.`;
+    const systemPrompt = `You are an elite React engineer. Write a complete, self-contained functional component using Tailwind CSS based on the user prompt. 
+Name the component 'App' or 'Scoreboard' and export it with 'export default function App()'.
+Output ONLY valid React TypeScript code directly without markdown descriptions. Ensure the code block is fully finished.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -294,7 +297,7 @@ Output ONLY valid React executable code without markdown description.`;
         const latency = Math.round(endTime - startTime);
 
         if (res.status === 402) {
-          throw new Error('Kräver OpenRouter credits (402 Payment Required).');
+          throw new Error('Kräver OpenRouter credits (402 Payment Required). Fyll på $1-2 på OpenRouter.');
         }
         if (res.status === 404) {
           throw new Error(`Modellen ${modelCfg.modelString} hittades inte (404).`);
@@ -349,7 +352,7 @@ Output ONLY valid React executable code without markdown description.`;
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct:free',
+          model: 'qwen/qwen-2.5-coder-32b-instruct',
           max_tokens: 3500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
@@ -370,7 +373,7 @@ Output ONLY valid React executable code without markdown description.`;
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-exp:free',
+          model: 'google/gemini-2.5-flash',
           max_tokens: 3500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
