@@ -26,11 +26,11 @@ interface ModelResult {
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-flash',
-    name: 'Gemini 2.5 / 3 Flash',
+    name: 'Gemini 2.0 Flash (Free)',
     provider: 'Google',
-    modelString: 'google/gemini-2.5-flash',
+    modelString: 'google/gemini-2.0-flash-exp:free',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: '1M Context',
+    badge: 'Free Tier',
     role: 'Master Synthesizer'
   },
   {
@@ -78,24 +78,47 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-function sanitizeReactCode(rawCode: string): string {
-  let code = rawCode
+// Robust rad-för-rad tvättare som garanterat rensar alla import/export och TypeScript-typer
+function cleanCodeForSandbox(raw: string): string {
+  let text = raw
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // Ta bort alla multiline och single-line imports
-  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
+  const lines = text.split('\n');
+  const resultLines: string[] = [];
+  let skippingImport = false;
 
-  // Ta bort export-satser
-  code = code.replace(/export\s+default\s+/g, '');
-  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+  for (let line of lines) {
+    const trimmed = line.trim();
 
-  return code;
+    if (trimmed.startsWith('import ') || trimmed.startsWith('import{')) {
+      if (!trimmed.includes('from') && !trimmed.endsWith(';')) {
+        skippingImport = true;
+      }
+      continue;
+    }
+
+    if (skippingImport) {
+      if (trimmed.includes('from') || trimmed.endsWith(';') || trimmed.includes("';") || trimmed.includes('";')) {
+        skippingImport = false;
+      }
+      continue;
+    }
+
+    if (trimmed.startsWith('export default ')) {
+      line = line.replace('export default ', '');
+    } else if (trimmed.startsWith('export ')) {
+      line = line.replace('export ', '');
+    }
+
+    resultLines.push(line);
+  }
+
+  return resultLines.join('\n');
 }
 
 function generateSandbox(rawCode: string): string {
-  const sanitized = sanitizeReactCode(rawCode);
+  const sanitized = cleanCodeForSandbox(rawCode);
   const safeJson = JSON.stringify(sanitized);
 
   return `<!DOCTYPE html>
@@ -143,7 +166,7 @@ function generateSandbox(rawCode: string): string {
       try {
         var sourceCode = ${safeJson};
 
-        // Babel transpilering med rena presets: ['react', 'typescript']
+        // Babel transpilering utan ogiltiga TSX options
         var transpiled = Babel.transform(sourceCode, {
           presets: ['react', 'typescript'],
           filename: 'app.tsx'
@@ -265,10 +288,10 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an expert React UI engineer.
-Write a single self-contained React functional component using Tailwind CSS based on the user request.
-Export the component as 'export default function App()'.
-Output ONLY valid React TypeScript JSX without markdown backticks, without explanatory prose, and ensure the code is complete.`;
+    const systemPrompt = `You are an elite React engineer.
+Write a single, complete functional component named 'App' using Tailwind CSS.
+Export it with 'export default function App()'.
+Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and completely closed without cutting off.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -287,7 +310,7 @@ Output ONLY valid React TypeScript JSX without markdown backticks, without expla
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 3500,
+            max_tokens: 3000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -355,7 +378,7 @@ Output ONLY valid React TypeScript JSX without markdown backticks, without expla
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 3500,
+          max_tokens: 3000,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -375,8 +398,8 @@ Output ONLY valid React TypeScript JSX without markdown backticks, without expla
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          max_tokens: 3500,
+          model: 'google/gemini-2.0-flash-exp:free',
+          max_tokens: 3000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
