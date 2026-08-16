@@ -26,7 +26,7 @@ interface ModelResult {
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-flash',
-    name: 'Gemini 3.1 / 2.5 Flash',
+    name: 'Gemini 2.5 / 3 Flash',
     provider: 'Google',
     modelString: 'google/gemini-2.5-flash',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
@@ -78,7 +78,7 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Sandbox HTML Generator
+// Native ESM + Import Map Sandbox
 function generateSandbox(rawCode: string): string {
   const cleanCode = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
@@ -92,9 +92,17 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0?dev",
+      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
+      "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev"
+    }
+  }
+  </script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
@@ -102,63 +110,38 @@ function generateSandbox(rawCode: string): string {
 <body>
   <div id="root"></div>
 
-  <script>
-    // Globals
-    window.useState = React.useState;
-    window.useEffect = React.useEffect;
-    window.useRef = React.useRef;
-    window.useMemo = React.useMemo;
-    window.useCallback = React.useCallback;
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import * as LucideIcons from 'lucide-react';
 
-    function makeIcon() {
-      return function() {
-        return React.createElement('span', { style: { display: 'inline-block', margin: '0 2px' } }, '⚡');
-      };
-    }
-    var icons = ['Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX', 'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users', 'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'];
-    icons.forEach(function(i) { window[i] = makeIcon(); });
-    window.LucideIcons = new Proxy({}, { get: function() { return makeIcon(); } });
+    window.React = React;
+    window.ReactDOM = ReactDOM;
+    window.LucideIcons = LucideIcons;
 
-    window.onload = function() {
-      try {
-        var raw = ${safeJson};
-        var code = raw
-          .replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/g, '')
-          .replace(/import\\s+['"][^'"]+['"];?/g, '')
-          .replace(/export\\s+default\\s+/g, '')
-          .replace(/export\\s+(const|let|var|function|class|type|interface)\\s+/g, '$1 ');
+    try {
+      const source = ${safeJson};
 
-        var transpiled = Babel.transform(code, {
-          presets: ['react', 'typescript'],
-          filename: 'app.tsx'
-        }).code;
+      // Transpilera TypeScript + TSX
+      const transpiled = Babel.transform(source, {
+        presets: ['react', 'typescript'],
+        filename: 'App.tsx'
+      }).code;
 
-        var executable = "(function() {\\n" +
-          "  var useState = React.useState;\\n" +
-          "  var useEffect = React.useEffect;\\n" +
-          "  var useRef = React.useRef;\\n" +
-          "  var useMemo = React.useMemo;\\n" +
-          "  var useCallback = React.useCallback;\\n" +
-          transpiled + "\\n;\\n" +
-          "  try { if (typeof App !== 'undefined') return App; } catch(e){}\\n" +
-          "  try { if (typeof MatchTimer !== 'undefined') return MatchTimer; } catch(e){}\\n" +
-          "  try { if (typeof Scoreboard !== 'undefined') return Scoreboard; } catch(e){}\\n" +
-          "  try { if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard; } catch(e){}\\n" +
-          "  try { if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat; } catch(e){}\\n" +
-          "  try { if (typeof Component !== 'undefined') return Component; } catch(e){}\\n" +
-          "  return null;\\n" +
-          "})()";
+      // Kör koden som en dynamisk ES-modul
+      const dataUri = "data:text/javascript;charset=utf-8," + encodeURIComponent(transpiled);
+      const mod = await import(dataUri);
+      
+      const Component = mod.default || mod.App || mod.Scoreboard || mod.MatchTimer || Object.values(mod).find(v => typeof v === 'function');
 
-        var Component = eval(executable);
-        if (Component && typeof Component === 'function') {
-          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
-        } else {
-          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Växla till "Kod"-läget för att se källkoden.</div>';
-        }
-      } catch (err) {
-        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+      if (Component) {
+        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
+      } else {
+        document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Växla till "Kod"-läget för att se källkoden.</div>';
       }
-    };
+    } catch (err) {
+      document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+    }
   </script>
 </body>
 </html>`;
@@ -235,7 +218,7 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Parallell Generering
+  // Parallell Körning
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -254,7 +237,7 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the component 'App' and export it as 'export default function App()'.
+Export the component as 'export default function App()'.
 Output ONLY valid React TypeScript code directly without markdown description.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
@@ -274,7 +257,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 5000,
+            max_tokens: 4000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -343,7 +326,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 5000,
+          max_tokens: 4000,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -364,7 +347,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 5000,
+          max_tokens: 4000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
@@ -402,7 +385,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
                 <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Live Sandbox & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Native ESM Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
@@ -425,7 +408,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
       {/* Main Studio Canvas */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
         
-        {/* API Key Modal */}
+        {/* API Key Drawer */}
         {showKeyInput && (
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center gap-3 shadow-2xl">
             <Key className="w-5 h-5 text-indigo-400 flex-shrink-0" />
