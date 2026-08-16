@@ -24,7 +24,6 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Uppdaterade med OpenRouters ledande gratismodeller
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'nemotron-ultra',
@@ -51,7 +50,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Google Gemma 4 31B',
     provider: 'Google',
     modelString: 'google/gemma-4-31b-it:free',
-    fallbackModel: 'openai/gpt-oss-20b:free',
+    fallbackModel: 'openai/gpt-oss-120b:free',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
     badge: 'Multilingual',
     role: 'Logik & Edge Cases'
@@ -71,7 +70,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Nemotron 3 Nano 30B',
     provider: 'NVIDIA',
     modelString: 'nvidia/nemotron-3-nano-30b-a3b:free',
-    fallbackModel: 'openai/gpt-oss-20b:free',
+    fallbackModel: 'openai/gpt-oss-120b:free',
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
     badge: 'High Efficiency',
     role: 'Validering & Stabilitet'
@@ -85,17 +84,40 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-function generateSandbox(rawCode: string): string {
-  let code = rawCode
+// Extremt aggressiv rensare som nollställer alla imports/exports
+function sanitizeCode(raw: string): string {
+  let text = raw
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/export\s+default\s+/g, '');
-  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+  const lines = text.split('\n');
+  const cleanLines = [];
+  let skipping = false;
 
-  const safeJson = JSON.stringify(code);
+  for (let line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('import ') || trimmed.startsWith('import{') || trimmed.includes(' from \'') || trimmed.includes(' from "')) {
+      if (!trimmed.includes(';') && !trimmed.includes('\'') && !trimmed.includes('"')) {
+        skipping = true;
+      }
+      continue;
+    }
+    if (skipping) {
+      if (trimmed.includes(';') || trimmed.includes('\'') || trimmed.includes('"')) {
+        skipping = false;
+      }
+      continue;
+    }
+    if (trimmed.startsWith('export default ')) line = line.replace('export default ', '');
+    else if (trimmed.startsWith('export ')) line = line.replace('export ', '');
+    cleanLines.push(line);
+  }
+  return cleanLines.join('\n');
+}
+
+function generateSandbox(rawCode: string): string {
+  const sanitized = sanitizeCode(rawCode);
+  const safeJson = JSON.stringify(sanitized);
 
   return `<!DOCTYPE html>
 <html>
@@ -223,7 +245,6 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Failover-funktion som automatiskt provar reservmodeller
   const callModelWithFailover = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string) => {
     const modelsToTry = [modelCfg.modelString, modelCfg.fallbackModel].filter(Boolean) as string[];
 
@@ -256,10 +277,10 @@ export default function App() {
           return cleanCode;
         }
       } catch (e) {
-        // Gå vidare till nästa modell
+        // Gå vidare till nästa
       }
     }
-    throw new Error('Alla fria agenter är upptagna eller nådde dagsgränsen.');
+    throw new Error('Alla fria agenter är upptagna.');
   };
 
   const executeParallelGeneration = async () => {
@@ -282,7 +303,7 @@ export default function App() {
     const systemPrompt = `You are an elite React engineer.
 Write a single, complete functional component named 'App' using Tailwind CSS based on the user request.
 Export it with 'export default function App()'.
-Output ONLY executable React TypeScript JSX without markdown backticks. Ensure the code is fully closed and complete.`;
+Output ONLY executable React TypeScript JSX without markdown backticks, without import statements. Ensure the code is fully closed and complete.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -316,12 +337,12 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
 
     try {
       const gptCfg = ALL_MODELS.find(m => m.id === 'gpt-oss')!;
-      const upgradedLogicCode = await callModelWithFailover(gptCfg, 'You are an expert React architect.', 'Enhance this component: \n' + baseCode);
+      const upgradedLogicCode = await callModelWithFailover(gptCfg, 'You are an expert React architect. No imports.', 'Enhance this component: \n' + baseCode);
 
       setSwarmStep('polishing');
       setSwarmProgressText('✨ Slutgiltig UI-förädling...');
 
-      const masterCode = await callModelWithFailover(ALL_MODELS[0], 'You are an elite UI designer.', 'Polish this React component: \n' + upgradedLogicCode);
+      const masterCode = await callModelWithFailover(ALL_MODELS[0], 'You are an elite UI designer. No imports.', 'Polish this React component: \n' + upgradedLogicCode);
 
       setSwarmStep('done');
       setFinalMasterCode(masterCode);
