@@ -17,12 +17,12 @@ interface ModelTarget {
 
 const ALL_MODELS: ModelTarget[] = [
   {
-    id: 'gemini-3-flash',
-    name: 'Gemini 3.7 Flash',
+    id: 'gemini-flash',
+    name: 'Gemini 3.1 / 2.5 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-3.7-flash',
+    modelString: 'google/gemini-2.5-flash',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: 'Gemini 3 Series',
+    badge: '1M Context',
     role: 'Master Synthesizer'
   },
   {
@@ -78,17 +78,22 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// 100% Bergsäker In-Memory Component Compiler
+// 100% Robust Sandbox Sanitizer & Compiler
 function createSandboxHtml(rawCode: string) {
-  let clean = rawCode
+  // 1. Tvätta markdown
+  let cleaned = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
-    .replace(/\n?```$/gm, '')
-    .replace(/import\s+(?:[\w*\s{},]*)\s+from\s+['"][^'"]+['"];?/g, '')
-    .replace(/import\s+['"][^'"]+['"];?/g, '')
-    .replace(/export\s+default\s+/g, 'return ')
-    .replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
+    .replace(/\n?```$/gm, '');
 
-  const safeJson = JSON.stringify(clean);
+  // 2. Rensa alla typer av imports (även multiline)
+  cleaned = cleaned.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
+  cleaned = cleaned.replace(/import\s+['"][^'"]+['"];?/g, '');
+
+  // 3. Rensa exports
+  cleaned = cleaned.replace(/export\s+default\s+/g, '');
+  cleaned = cleaned.replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
+
+  const safeJsonCode = JSON.stringify(cleaned);
 
   return `<!DOCTYPE html>
 <html>
@@ -100,49 +105,60 @@ function createSandboxHtml(rawCode: string) {
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
+    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script>
-    window.onload = function() {
+    window.addEventListener('DOMContentLoaded', function() {
       try {
-        var raw = ${safeJson};
+        var rawCode = ${safeJsonCode};
         
-        // Wrap i en körbar closure
-        var wrapper = "function renderRunner(React, ReactDOM) {\\n" +
-          "  var useState = React.useState;\\n" +
-          "  var useEffect = React.useEffect;\\n" +
-          "  var useRef = React.useRef;\\n" +
-          "  var useMemo = React.useMemo;\\n" +
-          "  var useCallback = React.useCallback;\\n" +
-          "  var LucideIcons = new Proxy({}, { get: function() { return function() { return React.createElement('span', {style:{display:'inline-block',margin:'0 2px'}}, '⚡'); }; } });\\n" +
-          raw + "\\n" +
-          "  if (typeof App !== 'undefined') return App;\\n" +
-          "  if (typeof MatchTimer !== 'undefined') return MatchTimer;\\n" +
-          "  if (typeof Scoreboard !== 'undefined') return Scoreboard;\\n" +
-          "  if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat;\\n" +
-          "  if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard;\\n" +
-          "  if (typeof Component !== 'undefined') return Component;\\n" +
-          "  return null;\\n" +
-          "}";
+        // Exponera React hooks i closure
+        var { useState, useEffect, useRef, useMemo, useCallback } = React;
+        
+        // Mock ikoner
+        var LucideIcons = new Proxy({}, {
+          get: function() {
+            return function(props) {
+              return React.createElement('span', { style: { display: 'inline-block', margin: '0 2px' } }, '⚡');
+            };
+          }
+        });
 
-        var transformed = Babel.transform(wrapper, { presets: ['react', 'typescript'] }).code;
-        eval(transformed);
+        // Transformera TypeScript + JSX via Babel
+        var transformed = Babel.transform(rawCode, {
+          presets: ['react', 'typescript'],
+          filename: 'component.tsx'
+        }).code;
 
-        var Component = renderRunner(React, ReactDOM);
+        // Kör koden i isolerad closure och hitta komponenten
+        var evalScope = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'LucideIcons',
+          transformed + "\\n;\\n" +
+          "var target = null;\\n" +
+          "if (typeof App !== 'undefined') target = App;\\n" +
+          "else if (typeof Scoreboard !== 'undefined') target = Scoreboard;\\n" +
+          "else if (typeof MatchTimer !== 'undefined') target = MatchTimer;\\n" +
+          "else if (typeof MatchSecretariat !== 'undefined') target = MatchSecretariat;\\n" +
+          "else if (typeof TimerAndScoreboard !== 'undefined') target = TimerAndScoreboard;\\n" +
+          "else if (typeof Dashboard !== 'undefined') target = Dashboard;\\n" +
+          "else if (typeof Component !== 'undefined') target = Component;\\n" +
+          "return target;"
+        );
 
-        if (Component) {
-          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
+        var FoundComponent = evalScope(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback, LucideIcons);
+
+        if (FoundComponent && typeof FoundComponent === 'function') {
+          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FoundComponent));
         } else {
-          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Kod genererad. Växla till "Kod"-läget för att granska.</div>';
+          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Kompilerad och klar! Växla till "Kod"-läget för att se källkoden.</div>';
         }
       } catch (err) {
         document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
       }
-    };
+    });
   </script>
 </body>
 </html>`;
@@ -154,7 +170,7 @@ export default function App() {
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'gemini-3-flash', 'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
+    'gemini-flash', 'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
@@ -238,7 +254,7 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the main component 'App' and return or export it cleanly.
+Name the main component 'App' and export it with 'export default function App()'.
 Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
@@ -335,7 +351,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
       const upgradedLogicCode = logicData.choices?.[0]?.message?.content || baseCode;
 
       setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/2: Gemini 3.7 Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
+      setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
 
       const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code with 'export default function App()'.`;
 
@@ -347,7 +363,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-3.7-flash',
+          model: 'google/gemini-2.5-flash',
           max_tokens: 3000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
