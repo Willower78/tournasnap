@@ -84,7 +84,7 @@ function createSandboxHtml(rawCode: string) {
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // Fullständig multiline import-rensning
+  // Komplett multiline import-rensning
   code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
   code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
   code = code.replace(/export\s+default\s+/g, '');
@@ -109,14 +109,12 @@ function createSandboxHtml(rawCode: string) {
   <div id="root"></div>
 
   <script>
-    // 1. React Hooks i global scope
     window.useState = React.useState;
     window.useEffect = React.useEffect;
     window.useRef = React.useRef;
     window.useMemo = React.useMemo;
     window.useCallback = React.useCallback;
 
-    // 2. Mock för alla ikoner
     function makeIcon(name) {
       return function(props) {
         var size = props && props.size ? props.size : 18;
@@ -149,13 +147,11 @@ function createSandboxHtml(rawCode: string) {
       try {
         var rawSource = ${jsonCode};
 
-        // Transpilera TypeScript + JSX
         var transpiled = Babel.transform(rawSource, {
           presets: ['react', 'typescript'],
           filename: 'component.tsx'
         }).code;
 
-        // Evaluera och fånga komponenten
         var executable = "(function() {\\n" +
           "  var useState = React.useState;\\n" +
           "  var useEffect = React.useEffect;\\n" +
