@@ -26,11 +26,11 @@ interface ModelResult {
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-flash',
-    name: 'Gemini 2.0 Flash (Free)',
+    name: 'Gemini 2.5 Flash',
     provider: 'Google',
-    modelString: 'google/gemini-2.0-flash-exp:free',
+    modelString: 'google/gemini-2.5-flash',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: 'Free Tier',
+    badge: 'Standard',
     role: 'Master Synthesizer'
   },
   {
@@ -44,7 +44,7 @@ const ALL_MODELS: ModelTarget[] = [
   },
   {
     id: 'deepseek-chat',
-    name: 'DeepSeek V3 / Coder',
+    name: 'DeepSeek V3',
     provider: 'DeepSeek',
     modelString: 'deepseek/deepseek-chat',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
@@ -78,7 +78,6 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Robust rad-för-rad tvättare som garanterat rensar alla import/export och TypeScript-typer
 function cleanCodeForSandbox(raw: string): string {
   let text = raw
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
@@ -159,14 +158,13 @@ function generateSandbox(rawCode: string): string {
     }
 
     var iconNames = ['Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX', 'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users', 'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'];
-    iconNames.forEach(function(k) { window[k] = makeIcon(); });
+    iconNames.forEach(function(k) { window[k] = makeIcon(k); });
     window.LucideIcons = new Proxy({}, { get: function() { return makeIcon(); } });
 
     window.onload = function() {
       try {
         var sourceCode = ${safeJson};
 
-        // Babel transpilering utan ogiltiga TSX options
         var transpiled = Babel.transform(sourceCode, {
           presets: ['react', 'typescript'],
           filename: 'app.tsx'
@@ -271,6 +269,7 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
+  // Parallell Körning med isolerade try/catch per modell
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -289,9 +288,9 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer.
-Write a single, complete functional component named 'App' using Tailwind CSS.
+Write a single, complete functional component named 'App' using Tailwind CSS based on the user request.
 Export it with 'export default function App()'.
-Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and completely closed without cutting off.`;
+Output ONLY executable React TypeScript JSX without markdown backticks. Ensure the code is fully closed and complete.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -310,7 +309,7 @@ Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and 
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 3000,
+            max_tokens: 3500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -322,11 +321,8 @@ Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and 
         const endTime = performance.now();
         const latency = Math.round(endTime - startTime);
 
-        if (res.status === 402) {
-          throw new Error('Kräver OpenRouter credits (402 Payment Required).');
-        }
-        if (res.status === 404) {
-          throw new Error(`Modellen ${modelCfg.modelString} hittades inte (404).`);
+        if (!res.ok) {
+          throw new Error(data.error?.message || \`HTTP \${res.status}\`);
         }
 
         if (data.choices && data.choices[0]?.message?.content) {
@@ -344,7 +340,7 @@ Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and 
             }
           }));
         } else {
-          throw new Error(data.error?.message || 'Genereringen misslyckades');
+          throw new Error('Ogiltigt svar från OpenRouter');
         }
       } catch (err: any) {
         setResults(prev => ({
@@ -378,7 +374,7 @@ Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and 
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 3000,
+          max_tokens: 3500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -398,8 +394,8 @@ Output ONLY executable React TypeScript JSX. Keep the code concise, robust, and 
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.0-flash-exp:free',
-          max_tokens: 3000,
+          model: 'google/gemini-2.5-flash',
+          max_tokens: 3500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
