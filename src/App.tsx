@@ -78,21 +78,29 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// 100% Robust Sandbox Sanitizer & Compiler
+// Universal Auto-Mount Sandbox Engine
 function createSandboxHtml(rawCode: string) {
-  // Rensa markdown codeblocks
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
-    .replace(/\n?```$/gm, '');
+    .replace(/\n?```$/gm, '')
+    .replace(/import\s+(?:[\w*\s{},]*)\s+from\s+['"][^'"]+['"];?/g, '')
+    .replace(/import\s+['"][^'"]+['"];?/g, '')
+    .replace(/export\s+default\s+/g, '')
+    .replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
 
-  // Ersätt alla import-satser med tomma strängar
-  code = code.replace(/import\s+(?:[\w*\s{},]*)\s+from\s+['"][^'"]+['"];?/g, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
+  // Hitta alla potentiella komponentnamn deklarerade i koden
+  const declaredComponents: string[] = [];
+  const funcMatches = code.matchAll(/(?:function|const|let|var|class)\s+([A-Z][A-Za-z0-9_]*)/g);
+  for (const m of funcMatches) {
+    if (!['React', 'ReactDOM', 'Babel'].includes(m[1])) {
+      declaredComponents.push(m[1]);
+    }
+  }
 
-  // Hantera export default
-  code = code.replace(/export\s+default\s+function\s+([A-Za-z0-9_]+)/g, 'function $1');
-  code = code.replace(/export\s+default\s+/g, 'window.__RootComponent = ');
-  code = code.replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
+  // Välj den primära komponenten (helst App, annars sista deklarerade)
+  const defaultTarget = declaredComponents.includes('App') 
+    ? 'App' 
+    : (declaredComponents[declaredComponents.length - 1] || 'null');
 
   return `<!DOCTYPE html>
 <html>
@@ -102,7 +110,7 @@ function createSandboxHtml(rawCode: string) {
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
   </style>
@@ -113,53 +121,34 @@ function createSandboxHtml(rawCode: string) {
   <script type="text/babel" data-presets="react,typescript">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    // Fallback UI Icons Mock
-    const LucideIcon = ({ name }) => (
-      <span className="inline-flex items-center justify-center w-4 h-4 text-xs">⚡</span>
-    );
-    window.LucideIcons = new Proxy({}, { get: () => LucideIcon });
+    // Global Mock för vanliga ikoner
+    const LucideMock = () => <span style={{display:'inline-block', width:'1em', height:'1em'}}>⚡</span>;
+    window.LucideIcons = new Proxy({}, { get: () => LucideMock });
 
     try {
-      window.__RootComponent = null;
-
       ${code}
 
-      let TargetComp = window.__RootComponent;
-
-      if (!TargetComp) {
-        const checkNames = [
-          'App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 
-          'MatchSecretariat', 'MatchTimerDashboard', 'Component',
-          'MatchScoreboard', 'Timer', 'Dashboard'
-        ];
-        for (const name of checkNames) {
-          if (typeof window[name] === 'function') {
-            TargetComp = window[name];
-            break;
-          }
+      // Identifiera och montera
+      let RootTarget = ${defaultTarget};
+      if (!RootTarget) {
+        const fallbacks = [${declaredComponents.map(c => `'${c}'`).join(',')}];
+        for (const name of fallbacks) {
+          try {
+            if (eval('typeof ' + name) === 'function') {
+              RootTarget = eval(name);
+              break;
+            }
+          } catch(e) {}
         }
       }
 
-      if (!TargetComp) {
-        const declared = Object.keys(window).filter(k => 
-          typeof window[k] === 'function' && 
-          /^[A-Z]/.test(k) && 
-          !k.startsWith('React') && 
-          !k.startsWith('Babel') && 
-          !k.startsWith('HTML')
-        );
-        if (declared.length > 0) {
-          TargetComp = window[declared[declared.length - 1]];
-        }
-      }
-
-      if (TargetComp) {
-        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TargetComp));
+      if (RootTarget) {
+        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(RootTarget));
       } else {
-        document.getElementById('root').innerHTML = '<div class="p-4 text-slate-400 font-mono text-xs">✅ Kod genererad. Växla till "Kod"-läget för att se källkoden.</div>';
+        document.getElementById('root').innerHTML = '<div class="p-4 text-emerald-400 font-mono text-xs">✅ Kod genererad. Växla till "Kod"-läget för att se källkoden.</div>';
       }
     } catch (err) {
-      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ Sandbox Error: ' + err.message + '</div>';
+      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ ' + err.message + '</div>';
     }
   </script>
 </body>
@@ -256,7 +245,7 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Make sure the main component is named 'App' and exported as 'export default function App()'.
+Name the main component 'App' and export it with 'export default function App()'.
 Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
