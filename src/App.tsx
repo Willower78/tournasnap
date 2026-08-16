@@ -26,20 +26,20 @@ interface ModelResult {
 const ALL_MODELS: ModelTarget[] = [
   {
     id: 'gemini-flash',
-    name: 'Gemini 2.5 / 3 Flash',
+    name: 'Gemini 2.0 Flash (Free/Pro)',
     provider: 'Google',
-    modelString: 'google/gemini-2.5-flash',
+    modelString: 'google/gemini-2.0-flash-exp:free',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: '1M Context',
+    badge: 'Free Tier',
     role: 'Master Synthesizer'
   },
   {
     id: 'qwen-coder',
     name: 'Qwen 2.5 Coder 32B',
     provider: 'Alibaba',
-    modelString: 'qwen/qwen-2.5-coder-32b-instruct',
+    modelString: 'qwen/qwen-2.5-coder-32b-instruct:free',
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-    badge: 'Top Full-Stack',
+    badge: 'Free Tier',
     role: 'TypeScript & Arkitektur'
   },
   {
@@ -48,16 +48,16 @@ const ALL_MODELS: ModelTarget[] = [
     provider: 'DeepSeek',
     modelString: 'deepseek/deepseek-chat',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    badge: 'High Speed Logic',
+    badge: 'High Speed',
     role: 'Logik & Edge Cases'
   },
   {
     id: 'llama-3-3',
-    name: 'Llama 3.3 70B',
+    name: 'Llama 3.3 70B (Free)',
     provider: 'Meta',
-    modelString: 'meta-llama/llama-3.3-70b-instruct',
+    modelString: 'meta-llama/llama-3.3-70b-instruct:free',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    badge: 'Ultra Fast',
+    badge: 'Free Tier',
     role: 'UI & Interaktioner'
   },
   {
@@ -78,11 +78,15 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Native ESM + Import Map Sandbox med Auto-Recovery
+// Direktsandbox utan CSP/data-URI-blockering
 function generateSandbox(rawCode: string): string {
   let cleanCode = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
-    .replace(/\n?```$/gm, '');
+    .replace(/\n?```$/gm, '')
+    .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
+    .replace(/import\s+['"][^'"]+['"];?/g, '')
+    .replace(/export\s+default\s+/g, '')
+    .replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
   const safeJson = JSON.stringify(cleanCode);
 
@@ -92,17 +96,9 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0?dev",
-      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
-      "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev"
-    }
-  }
-  </script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
@@ -110,42 +106,66 @@ function generateSandbox(rawCode: string): string {
 <body>
   <div id="root"></div>
 
-  <script type="module">
-    import React from 'react';
-    import ReactDOM from 'react-dom/client';
-    import * as LucideIcons from 'lucide-react';
+  <script>
+    // React Hooks globalt
+    var { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    window.React = React;
-    window.ReactDOM = ReactDOM;
-    window.LucideIcons = LucideIcons;
-
-    try {
-      let source = ${safeJson};
-
-      // Auto-reparation om kod avhuggits vid setInterval/timer
-      if (source.includes('prevTime +') && !source.includes('prevTime + 1')) {
-        source = source.replace(/prevTime\s*\+\s*$/, 'prevTime + 1);\\n    }, 1000);\\n  };');
-      }
-
-      // Transpilera TypeScript + TSX
-      const transpiled = Babel.transform(source, {
-        presets: ['react', 'typescript'],
-        filename: 'App.tsx'
-      }).code;
-
-      const dataUri = "data:text/javascript;charset=utf-8," + encodeURIComponent(transpiled);
-      const mod = await import(dataUri);
-      
-      const Component = mod.default || mod.App || mod.Scoreboard || mod.MatchTimer || Object.values(mod).find(v => typeof v === 'function');
-
-      if (Component) {
-        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
-      } else {
-        document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Växla till "Kod"-läget för att se källkoden.</div>';
-      }
-    } catch (err) {
-      document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+    // SVG Ikon Mock
+    function makeIcon(name) {
+      return function(props) {
+        var size = props && props.size ? props.size : 16;
+        var className = props && props.className ? props.className : "inline-block";
+        return React.createElement('svg', {
+          width: size,
+          height: size,
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: "2",
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          className: className
+        }, React.createElement('circle', { cx: "12", cy: "12", r: "10" }));
+      };
     }
+
+    var iconNames = ['Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX', 'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users', 'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'];
+    iconNames.forEach(function(k) { window[k] = makeIcon(k); });
+    window.LucideIcons = new Proxy({}, { get: function(t, p) { return makeIcon(p); } });
+
+    window.onload = function() {
+      try {
+        var sourceCode = ${safeJson};
+
+        // Babel transpilering direkt i webbläsaren
+        var transpiled = Babel.transform(sourceCode, {
+          presets: ['react', 'typescript'],
+          filename: 'app.tsx'
+        }).code;
+
+        // Evaluerar koden och returnerar den definierade komponenten
+        var evalFunction = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
+          transpiled + "\\n;\\n" +
+          "if (typeof App !== 'undefined') return App;\\n" +
+          "if (typeof Scoreboard !== 'undefined') return Scoreboard;\\n" +
+          "if (typeof MatchTimer !== 'undefined') return MatchTimer;\\n" +
+          "if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard;\\n" +
+          "if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat;\\n" +
+          "if (typeof Component !== 'undefined') return Component;\\n" +
+          "return null;"
+        );
+
+        var TargetComponent = evalFunction(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback);
+
+        if (TargetComponent && typeof TargetComponent === 'function') {
+          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TargetComponent));
+        } else {
+          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Byt till "Kod"-läget för att se källkoden.</div>';
+        }
+      } catch (err) {
+        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+      }
+    };
   </script>
 </body>
 </html>`;
@@ -240,9 +260,9 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an elite React engineer. Write a complete, self-contained single-file React component using Tailwind CSS based on the user prompt. 
-Export the component with 'export default function App()'.
-Output ONLY valid executable TypeScript JSX code directly without markdown description. Make sure the code is completely finished without cutoff.`;
+    const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
+Name the component 'App' or 'Scoreboard'.
+Output ONLY valid React executable code without markdown description.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -261,7 +281,7 @@ Output ONLY valid executable TypeScript JSX code directly without markdown descr
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 4500,
+            max_tokens: 3500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -329,8 +349,8 @@ Output ONLY valid executable TypeScript JSX code directly without markdown descr
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 4500,
+          model: 'qwen/qwen-2.5-coder-32b-instruct:free',
+          max_tokens: 3500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -350,8 +370,8 @@ Output ONLY valid executable TypeScript JSX code directly without markdown descr
           'HTTP-Referer': window.location.origin
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          max_tokens: 4500,
+          model: 'google/gemini-2.0-flash-exp:free',
+          max_tokens: 3500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
@@ -389,7 +409,7 @@ Output ONLY valid executable TypeScript JSX code directly without markdown descr
                 <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Native ESM Sandbox & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Live Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
@@ -412,7 +432,7 @@ Output ONLY valid executable TypeScript JSX code directly without markdown descr
       {/* Main Studio Canvas */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
         
-        {/* API Key Drawer */}
+        {/* API Key Modal */}
         {showKeyInput && (
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center gap-3 shadow-2xl">
             <Key className="w-5 h-5 text-indigo-400 flex-shrink-0" />
