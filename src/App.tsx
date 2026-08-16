@@ -78,29 +78,17 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Universal Auto-Mount Sandbox Engine
+// 100% Bergsäker In-Memory Component Compiler
 function createSandboxHtml(rawCode: string) {
-  let code = rawCode
+  let clean = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '')
     .replace(/import\s+(?:[\w*\s{},]*)\s+from\s+['"][^'"]+['"];?/g, '')
     .replace(/import\s+['"][^'"]+['"];?/g, '')
-    .replace(/export\s+default\s+/g, '')
+    .replace(/export\s+default\s+/g, 'return ')
     .replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
 
-  // Hitta alla potentiella komponentnamn deklarerade i koden
-  const declaredComponents: string[] = [];
-  const funcMatches = code.matchAll(/(?:function|const|let|var|class)\s+([A-Z][A-Za-z0-9_]*)/g);
-  for (const m of funcMatches) {
-    if (!['React', 'ReactDOM', 'Babel'].includes(m[1])) {
-      declaredComponents.push(m[1]);
-    }
-  }
-
-  // Välj den primära komponenten (helst App, annars sista deklarerade)
-  const defaultTarget = declaredComponents.includes('App') 
-    ? 'App' 
-    : (declaredComponents[declaredComponents.length - 1] || 'null');
+  const safeJson = JSON.stringify(clean);
 
   return `<!DOCTYPE html>
 <html>
@@ -112,44 +100,49 @@ function createSandboxHtml(rawCode: string) {
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
+    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
-  <script type="text/babel" data-presets="react,typescript">
-    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+  <script>
+    window.onload = function() {
+      try {
+        var raw = ${safeJson};
+        
+        // Wrap i en körbar closure
+        var wrapper = "function renderRunner(React, ReactDOM) {\\n" +
+          "  var useState = React.useState;\\n" +
+          "  var useEffect = React.useEffect;\\n" +
+          "  var useRef = React.useRef;\\n" +
+          "  var useMemo = React.useMemo;\\n" +
+          "  var useCallback = React.useCallback;\\n" +
+          "  var LucideIcons = new Proxy({}, { get: function() { return function() { return React.createElement('span', {style:{display:'inline-block',margin:'0 2px'}}, '⚡'); }; } });\\n" +
+          raw + "\\n" +
+          "  if (typeof App !== 'undefined') return App;\\n" +
+          "  if (typeof MatchTimer !== 'undefined') return MatchTimer;\\n" +
+          "  if (typeof Scoreboard !== 'undefined') return Scoreboard;\\n" +
+          "  if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat;\\n" +
+          "  if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard;\\n" +
+          "  if (typeof Component !== 'undefined') return Component;\\n" +
+          "  return null;\\n" +
+          "}";
 
-    // Global Mock för vanliga ikoner
-    const LucideMock = () => <span style={{display:'inline-block', width:'1em', height:'1em'}}>⚡</span>;
-    window.LucideIcons = new Proxy({}, { get: () => LucideMock });
+        var transformed = Babel.transform(wrapper, { presets: ['react', 'typescript'] }).code;
+        eval(transformed);
 
-    try {
-      ${code}
+        var Component = renderRunner(React, ReactDOM);
 
-      // Identifiera och montera
-      let RootTarget = ${defaultTarget};
-      if (!RootTarget) {
-        const fallbacks = [${declaredComponents.map(c => `'${c}'`).join(',')}];
-        for (const name of fallbacks) {
-          try {
-            if (eval('typeof ' + name) === 'function') {
-              RootTarget = eval(name);
-              break;
-            }
-          } catch(e) {}
+        if (Component) {
+          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
+        } else {
+          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Kod genererad. Växla till "Kod"-läget för att granska.</div>';
         }
+      } catch (err) {
+        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
       }
-
-      if (RootTarget) {
-        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(RootTarget));
-      } else {
-        document.getElementById('root').innerHTML = '<div class="p-4 text-emerald-400 font-mono text-xs">✅ Kod genererad. Växla till "Kod"-läget för att se källkoden.</div>';
-      }
-    } catch (err) {
-      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ ' + err.message + '</div>';
-    }
+    };
   </script>
 </body>
 </html>`;
@@ -245,7 +238,7 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the main component 'App' and export it with 'export default function App()'.
+Name the main component 'App' and return or export it cleanly.
 Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
