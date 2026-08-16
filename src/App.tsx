@@ -84,6 +84,7 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
+// Garanterad synlig Sandbox-motor med auto-mount inspektör
 function generateSandbox(rawCode: string): string {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
@@ -125,13 +126,34 @@ function generateSandbox(rawCode: string): string {
 
     try {
       const sourceCode = ${safeJson};
-      const script = document.createElement('script');
-      script.type = 'text/babel';
-      script.setAttribute('data-presets', 'react,typescript');
-      script.text = sourceCode + "\\n\\ntry {\\n  const root = ReactDOM.createRoot(document.getElementById('root'));\\n  if (typeof App !== 'undefined') root.render(<App />);\\n  else if (typeof Scoreboard !== 'undefined') root.render(<Scoreboard />);\\n  else if (typeof MatchTimer !== 'undefined') root.render(<MatchTimer />);\\n  else if (typeof Component !== 'undefined') root.render(<Component />);\\n} catch(e) {}";
-      document.body.appendChild(script);
+      const wrapperScript = document.createElement('script');
+      wrapperScript.type = 'text/babel';
+      wrapperScript.setAttribute('data-presets', 'react,typescript');
+      wrapperScript.text = sourceCode + \`
+        try {
+          const root = ReactDOM.createRoot(document.getElementById('root'));
+          if (typeof App !== 'undefined') {
+            root.render(<App />);
+          } else if (typeof Scoreboard !== 'undefined') {
+            root.render(<Scoreboard />);
+          } else if (typeof MatchTimer !== 'undefined') {
+            root.render(<MatchTimer />);
+          } else if (typeof Component !== 'undefined') {
+            root.render(<Component />);
+          } else {
+            root.render(
+              <div className="p-6 text-center text-emerald-400 font-mono text-sm">
+                ✅ Komponent kompilerad! Byt till "Kod"-fliken för att se källkoden.
+              </div>
+            );
+          }
+        } catch(renderErr) {
+          document.getElementById('root').innerHTML = '<div style="padding:12px;color:#f87171;font-size:12px;font-family:monospace;">Render Error: ' + renderErr.message + '</div>';
+        }
+      \`;
+      document.body.appendChild(wrapperScript);
     } catch (err) {
-      document.getElementById('root').innerHTML = '<div style="color:#f87171;padding:10px;">Error: ' + err.message + '</div>';
+      document.getElementById('root').innerHTML = '<div style="color:#f87171;padding:10px;font-size:12px;font-family:monospace;">Babel Error: ' + err.message + '</div>';
     }
   </script>
 </body>
@@ -209,14 +231,12 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Anropa OpenRouter med automatisk Auto-Failover om en modell misslyckas (t.ex. 402/404)
   const callModelWithFailover = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string) => {
     const modelsToTry = [modelCfg.modelString, modelCfg.fallbackModel].filter(Boolean) as string[];
 
     for (const modelSlug of modelsToTry) {
       try {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          model: modelSlug,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -243,7 +263,7 @@ export default function App() {
           return cleanCode;
         }
       } catch (e) {
-        // Försök nästa fallback-modell i listan
+        // Försök nästa fallback
       }
     }
     throw new Error('Alla tillgängliga AI-agenter misslyckades eller saknar krediter.');
