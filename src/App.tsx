@@ -78,19 +78,19 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// 100% Robust Sandbox Compiler med kompletta React + Lucide Ikoner
+// 100% Rock-Solid In-Memory Component Sandbox
 function createSandboxHtml(rawCode: string) {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // Rensa imports
+  // Ta bort import-rader
   code = code
     .split('\n')
     .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('import{'))
     .join('\n');
 
-  // Rensa export default
+  // Ta bort export-nyckelord
   code = code.replace(/export\s+default\s+/g, '');
   code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
@@ -113,14 +113,14 @@ function createSandboxHtml(rawCode: string) {
   <div id="root"></div>
 
   <script>
-    // 1. Exponera alla React Hooks i window
+    // 1. React Hooks & Globals
     window.useState = React.useState;
     window.useEffect = React.useEffect;
     window.useRef = React.useRef;
     window.useMemo = React.useMemo;
     window.useCallback = React.useCallback;
 
-    // 2. Skapa ett generiskt SVG-ikon-element
+    // 2. Ikon-generator
     function makeIcon(name) {
       return function(props) {
         var size = props && props.size ? props.size : 18;
@@ -139,7 +139,6 @@ function createSandboxHtml(rawCode: string) {
       };
     }
 
-    // 3. Auto-injicera vanliga Lucide-ikonnamn i window så koden aldrig kraschar på odefinierade ikoner
     var iconList = [
       'Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX',
       'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users',
@@ -148,53 +147,43 @@ function createSandboxHtml(rawCode: string) {
     for (var i = 0; i < iconList.length; i++) {
       window[iconList[i]] = makeIcon(iconList[i]);
     }
-
-    // Proxy fallback för alla andra okända ikoner
-    window.Lucide = new Proxy({}, { get: function(target, prop) { return makeIcon(prop); } });
-    window['lucide-react'] = window.Lucide;
+    window.LucideIcons = new Proxy({}, { get: function(target, prop) { return makeIcon(prop); } });
 
     window.onload = function() {
       try {
         var rawSource = ${jsonCode};
 
-        // Transpilera TypeScript + JSX
+        // Transpilera TypeScript + JSX med Babel
         var transpiled = Babel.transform(rawSource, {
           presets: ['react', 'typescript'],
           filename: 'component.tsx'
         }).code;
 
-        // Kör koden
-        var runScript = document.createElement('script');
-        runScript.type = 'text/javascript';
-        runScript.text = transpiled;
-        document.body.appendChild(runScript);
+        // Bygg en exekverings-wrapper som automatiskt hittar och returnerar komponenten
+        var executable = "(function() {\\n" +
+          "  var useState = React.useState;\\n" +
+          "  var useEffect = React.useEffect;\\n" +
+          "  var useRef = React.useRef;\\n" +
+          "  var useMemo = React.useMemo;\\n" +
+          "  var useCallback = React.useCallback;\\n" +
+          transpiled + "\\n;\\n" +
+          "  try { if (typeof App !== 'undefined') return App; } catch(e){}\\n" +
+          "  try { if (typeof MatchTimer !== 'undefined') return MatchTimer; } catch(e){}\\n" +
+          "  try { if (typeof Scoreboard !== 'undefined') return Scoreboard; } catch(e){}\\n" +
+          "  try { if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard; } catch(e){}\\n" +
+          "  try { if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat; } catch(e){}\\n" +
+          "  try { if (typeof MatchTimerDashboard !== 'undefined') return MatchTimerDashboard; } catch(e){}\\n" +
+          "  try { if (typeof Dashboard !== 'undefined') return Dashboard; } catch(e){}\\n" +
+          "  try { if (typeof Component !== 'undefined') return Component; } catch(e){}\\n" +
+          "  return null;\\n" +
+          "})()";
 
-        // Hitta komponenten att rendera
-        var ComponentToRender = null;
-        var possible = [
-          'App', 'MatchTimer', 'Scoreboard', 'TimerAndScoreboard',
-          'MatchSecretariat', 'MatchTimerDashboard', 'Dashboard', 'Component'
-        ];
-        for (var j = 0; j < possible.length; j++) {
-          if (typeof window[possible[j]] === 'function') {
-            ComponentToRender = window[possible[j]];
-            break;
-          }
-        }
-
-        if (!ComponentToRender) {
-          var keys = Object.keys(window).filter(function(k) {
-            return typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML') && iconList.indexOf(k) === -1;
-          });
-          if (keys.length > 0) {
-            ComponentToRender = window[keys[keys.length - 1]];
-          }
-        }
+        var ComponentToRender = eval(executable);
 
         if (ComponentToRender && typeof ComponentToRender === 'function') {
           ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ComponentToRender));
         } else {
-          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent genererad! Växla till "Kod"-läget för att se källkoden.</div>';
+          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Växla till "Kod"-läget för att se källkoden.</div>';
         }
       } catch (err) {
         document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
@@ -295,8 +284,8 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the component 'App' and declare it with 'function App() { ... }'.
-Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
+Name the main component 'App' or 'Scoreboard'.
+Output ONLY valid React executable code without markdown explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -315,7 +304,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 3500,
+            max_tokens: 4000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -384,7 +373,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 3500,
+          max_tokens: 4000,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -405,7 +394,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 3500,
+          max_tokens: 4000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
