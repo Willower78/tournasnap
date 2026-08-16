@@ -78,13 +78,11 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Universal ESM Blob Sandbox Generator
 function generateSandbox(rawCode: string): string {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // Fullständig rensning av imports för att förhindra modulkrascher
   code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
   code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
   code = code.replace(/export\s+default\s+/g, '');
@@ -98,17 +96,9 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0?dev",
-      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
-      "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev"
-    }
-  }
-  </script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
@@ -116,42 +106,30 @@ function generateSandbox(rawCode: string): string {
 <body>
   <div id="root"></div>
 
-  <script type="module">
-    import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-    import ReactDOM from 'react-dom/client';
-    import * as LucideIcons from 'lucide-react';
+  <script type="text/babel" data-presets="react,typescript">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    window.React = React;
-    window.ReactDOM = ReactDOM;
-
-    // Gör alla Lucide-ikoner tillgängliga globalt
-    Object.keys(LucideIcons).forEach(function(key) {
-      window[key] = LucideIcons[key];
+    const IconMock = (props) => React.createElement('span', { className: 'inline-block mx-1' }, '⚡');
+    const LucideIcons = new Proxy({}, { get: () => IconMock });
+    Object.assign(window, {
+      Play: IconMock, Pause: IconMock, RotateCcw: IconMock, Square: IconMock, Clock: IconMock,
+      Trophy: IconMock, Zap: IconMock, Volume2: IconMock, VolumeX: IconMock, Shield: IconMock,
+      Activity: IconMock, Award: IconMock, Plus: IconMock, Minus: IconMock, Users: IconMock,
+      Flame: IconMock, Check: IconMock, Copy: IconMock, Trash2: IconMock, RefreshCw: IconMock,
+      Calendar: IconMock, Timer: IconMock, Settings: IconMock, Bell: IconMock, LucideIcons
     });
 
     try {
-      const source = ${safeJson};
-
-      // Transpilera TypeScript + TSX via Babel
-      const transpiled = Babel.transform(source, {
-        presets: ['react', 'typescript'],
-        filename: 'App.tsx'
-      }).code;
-
-      // Exekvera som en ren ES-modul via Blob URL
-      const blob = new Blob([transpiled + "\\n\\nexport { App, Scoreboard, MatchTimer, TimerAndScoreboard, MatchSecretariat, Component };"], { type: 'text/javascript' });
-      const url = URL.createObjectURL(blob);
-      const mod = await import(url);
-
-      const Component = mod.default || mod.App || mod.Scoreboard || mod.MatchTimer || Object.values(mod).find(v => typeof v === 'function');
-
-      if (Component) {
-        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
-      } else {
-        document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Byt till "Kod"-läget för att se källkoden.</div>';
-      }
+      const sourceCode = ${safeJson};
+      
+      // Skapa ett dynamiskt script-element för att köra koden
+      const script = document.createElement('script');
+      script.type = 'text/babel';
+      script.setAttribute('data-presets', 'react,typescript');
+      script.text = sourceCode + "\\n\\ntry {\\n  const root = ReactDOM.createRoot(document.getElementById('root'));\\n  if (typeof App !== 'undefined') root.render(<App />);\\n  else if (typeof Scoreboard !== 'undefined') root.render(<Scoreboard />);\\n  else if (typeof MatchTimer !== 'undefined') root.render(<MatchTimer />);\\n  else if (typeof Component !== 'undefined') root.render(<Component />);\\n} catch(e) {}";
+      document.body.appendChild(script);
     } catch (err) {
-      document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+      document.getElementById('root'].innerHTML = '<div style="color:#f87171;padding:10px;">Error: ' + err.message + '</div>';
     }
   </script>
 </body>
@@ -390,7 +368,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
                 <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Native ESM Blob Sandbox & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Inline Babel Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
