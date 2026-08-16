@@ -289,7 +289,7 @@ export default function App() {
     const systemPrompt = `You are an elite React engineer.
 Write a single, complete functional component named 'App' using Tailwind CSS based on the user request.
 Export it with 'export default function App()'.
-Output ONLY executable React TypeScript JSX without markdown backticks. Ensure the code is fully closed and complete.`;
+Output ONLY executable React TypeScript JSX without markdown backticks. Ensure the code is fully closed, concise, and complete within 2000 tokens.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -308,7 +308,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 3500,
+            max_tokens: 2000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -373,7 +373,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 3500,
+          max_tokens: 2500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -394,7 +394,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 3500,
+          max_tokens: 2500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
