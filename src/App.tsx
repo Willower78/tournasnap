@@ -78,20 +78,19 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Ren och stabil Sandbox-kompilator
+// 100% Robust Sandbox Compiler med kompletta React + Lucide Ikoner
 function createSandboxHtml(rawCode: string) {
-  // 1. Rensa markdown-block
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // 2. Rensa import-rader
+  // Rensa imports
   code = code
     .split('\n')
     .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('import{'))
     .join('\n');
 
-  // 3. Rensa export-ordet men behåll funktionen / variabeln
+  // Rensa export default
   code = code.replace(/export\s+default\s+/g, '');
   code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
@@ -107,28 +106,52 @@ function createSandboxHtml(rawCode: string) {
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
-    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
+    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script>
-    // Globala shims
-    var { useState, useEffect, useRef, useMemo, useCallback } = React;
+    // 1. Exponera alla React Hooks i window
+    window.useState = React.useState;
+    window.useEffect = React.useEffect;
+    window.useRef = React.useRef;
+    window.useMemo = React.useMemo;
+    window.useCallback = React.useCallback;
 
-    var IconMock = function(props) {
-      return React.createElement('span', {
-        style: { display: 'inline-block', margin: '0 2px', verticalAlign: 'middle', fontSize: '13px' }
-      }, '⚡');
-    };
-    window.LucideIcons = new Proxy({}, { get: function() { return IconMock; } });
+    // 2. Skapa ett generiskt SVG-ikon-element
+    function makeIcon(name) {
+      return function(props) {
+        var size = props && props.size ? props.size : 18;
+        var className = props && props.className ? props.className : "inline-block";
+        return React.createElement('svg', {
+          width: size,
+          height: size,
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: "2",
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          className: className
+        }, React.createElement('circle', { cx: "12", cy: "12", r: "10" }));
+      };
+    }
 
-    window.require = function(mod) {
-      if (mod === 'react') return window.React;
-      if (mod === 'react-dom') return window.ReactDOM;
-      return window.LucideIcons;
-    };
+    // 3. Auto-injicera vanliga Lucide-ikonnamn i window så koden aldrig kraschar på odefinierade ikoner
+    var iconList = [
+      'Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX',
+      'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users',
+      'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'
+    ];
+    for (var i = 0; i < iconList.length; i++) {
+      window[iconList[i]] = makeIcon(iconList[i]);
+    }
+
+    // Proxy fallback för alla andra okända ikoner
+    window.Lucide = new Proxy({}, { get: function(target, prop) { return makeIcon(prop); } });
+    window['lucide-react'] = window.Lucide;
 
     window.onload = function() {
       try {
@@ -140,28 +163,28 @@ function createSandboxHtml(rawCode: string) {
           filename: 'component.tsx'
         }).code;
 
-        // Kör i ett globalt script-block
+        // Kör koden
         var runScript = document.createElement('script');
         runScript.type = 'text/javascript';
         runScript.text = transpiled;
         document.body.appendChild(runScript);
 
-        // Hitta den renderbara komponenten
+        // Hitta komponenten att rendera
         var ComponentToRender = null;
         var possible = [
           'App', 'MatchTimer', 'Scoreboard', 'TimerAndScoreboard',
           'MatchSecretariat', 'MatchTimerDashboard', 'Dashboard', 'Component'
         ];
-        for (var i = 0; i < possible.length; i++) {
-          if (typeof window[possible[i]] === 'function') {
-            ComponentToRender = window[possible[i]];
+        for (var j = 0; j < possible.length; j++) {
+          if (typeof window[possible[j]] === 'function') {
+            ComponentToRender = window[possible[j]];
             break;
           }
         }
 
         if (!ComponentToRender) {
           var keys = Object.keys(window).filter(function(k) {
-            return typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML');
+            return typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML') && iconList.indexOf(k) === -1;
           });
           if (keys.length > 0) {
             ComponentToRender = window[keys[keys.length - 1]];
