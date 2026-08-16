@@ -78,22 +78,25 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Rengöring och Sandbox HTML
-function generateSandbox(rawCode: string): string {
-  // 1. Tvätta bort markdown
+function sanitizeReactCode(rawCode: string): string {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // 2. Tvätta bort alla former av imports (även flerradiga) direkt i JavaScript
-  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
+  // Ta bort alla multiline och single-line imports
+  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
 
-  // 3. Tvätta bort export default / export
+  // Ta bort export-satser
   code = code.replace(/export\s+default\s+/g, '');
   code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
-  const safeJson = JSON.stringify(code);
+  return code;
+}
+
+function generateSandbox(rawCode: string): string {
+  const sanitized = sanitizeReactCode(rawCode);
+  const safeJson = JSON.stringify(sanitized);
 
   return `<!DOCTYPE html>
 <html>
@@ -112,10 +115,9 @@ function generateSandbox(rawCode: string): string {
   <div id="root"></div>
 
   <script>
-    // Globals
     var { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    function makeIcon(name) {
+    function makeIcon() {
       return function(props) {
         var size = props && props.size ? props.size : 16;
         var className = props && props.className ? props.className : "inline-block";
@@ -134,20 +136,20 @@ function generateSandbox(rawCode: string): string {
     }
 
     var iconNames = ['Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX', 'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users', 'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'];
-    iconNames.forEach(function(k) { window[k] = makeIcon(k); });
-    window.LucideIcons = new Proxy({}, { get: function(t, p) { return makeIcon(p); } });
+    iconNames.forEach(function(k) { window[k] = makeIcon(); });
+    window.LucideIcons = new Proxy({}, { get: function() { return makeIcon(); } });
 
     window.onload = function() {
       try {
-        var cleanedSource = ${safeJson};
+        var sourceCode = ${safeJson};
 
-        // Babel transpilering direkt i webbläsaren
-        var transpiled = Babel.transform(cleanedSource, {
-          presets: ['react', 'typescript'],
+        var transpiled = Babel.transform(sourceCode, {
+          presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
           filename: 'app.tsx'
         }).code;
 
-        var evalScope = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
+        var evalScope = new Function(
+          'React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
           transpiled + "\\n;\\n" +
           "if (typeof App !== 'undefined') return App;\\n" +
           "if (typeof Scoreboard !== 'undefined') return Scoreboard;\\n" +
@@ -245,7 +247,6 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Parallell Körning
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -263,9 +264,10 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an elite React engineer. Write a complete, self-contained functional component using Tailwind CSS based on the user prompt. 
-Name the component 'App' or 'Scoreboard' and export it with 'export default function App()'.
-Output ONLY valid React TypeScript code directly without markdown descriptions. Ensure the code block is fully finished.`;
+    const systemPrompt = `You are an expert React UI engineer.
+Write a single self-contained React functional component using Tailwind CSS based on the user request.
+Export the component as 'export default function App()'.
+Output ONLY valid React TypeScript JSX without markdown backticks, without explanatory prose, and ensure the code is complete.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -297,7 +299,7 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
         const latency = Math.round(endTime - startTime);
 
         if (res.status === 402) {
-          throw new Error('Kräver OpenRouter credits (402 Payment Required). Fyll på $1-2 på OpenRouter.');
+          throw new Error('Kräver OpenRouter credits (402 Payment Required).');
         }
         if (res.status === 404) {
           throw new Error(`Modellen ${modelCfg.modelString} hittades inte (404).`);
@@ -336,10 +338,9 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
     await Promise.allSettled(promises);
   };
 
-  // Swarm Synthesis
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
     setSwarmStep('analyzing');
-    setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar TypeScript-arkitektur och state-logik...');
+    setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar arkitektur och logik...');
 
     try {
       const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'export default function App()'.`;
@@ -361,7 +362,7 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
       const upgradedLogicCode = logicData.choices?.[0]?.message?.content || baseCode;
 
       setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
+      setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI och sammanställer slutkoden...');
 
       const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY clean code with 'export default function App()'.`;
 
@@ -398,8 +399,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
 
   return (
     <div className="min-h-screen bg-[#080B10] text-slate-100 font-sans flex flex-col selection:bg-indigo-500/30">
-      
-      {/* Header */}
       <header className="h-16 border-b border-slate-800/80 bg-slate-950/90 px-4 sm:px-8 flex items-center justify-between backdrop-blur-xl sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-500/20">
@@ -416,7 +415,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
           </div>
         </div>
 
-        {/* Global Key */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowKeyInput(!showKeyInput)}
@@ -432,10 +430,7 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
         </div>
       </header>
 
-      {/* Main Studio Canvas */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
-        
-        {/* API Key Modal */}
         {showKeyInput && (
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center gap-3 shadow-2xl">
             <Key className="w-5 h-5 text-indigo-400 flex-shrink-0" />
@@ -450,7 +445,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
           </div>
         )}
 
-        {/* Prompt Deck */}
         <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 shadow-2xl space-y-5 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
@@ -464,7 +458,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
             </div>
           </div>
 
-          {/* Model Chips */}
           <div className="flex flex-wrap gap-2.5">
             {ALL_MODELS.map(m => {
               const active = selectedModelIds.includes(m.id);
@@ -486,7 +479,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
             })}
           </div>
 
-          {/* Prompt Area */}
           <div className="space-y-3">
             <textarea
               rows={3}
@@ -524,7 +516,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
           </div>
         </div>
 
-        {/* SWARM PROGRESS */}
         {swarmStep !== 'idle' && (
           <div className="bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-cyan-900/40 border-2 border-indigo-500/50 rounded-3xl p-6 shadow-2xl space-y-3 animate-pulse">
             <div className="flex items-center justify-between">
@@ -547,7 +538,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
           </div>
         )}
 
-        {/* MASTERPIECE */}
         {finalMasterCode && (
           <div className="bg-gradient-to-b from-indigo-950/80 to-slate-900 border-2 border-emerald-500/60 rounded-3xl overflow-hidden shadow-2xl space-y-0">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
@@ -622,7 +612,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
           </div>
         )}
 
-        {/* Phase 1 Comparison Grid */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Swords className="w-4 h-4 text-indigo-400" />
@@ -637,8 +626,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
 
               return (
                 <div key={modelId} className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden flex flex-col shadow-2xl">
-                  
-                  {/* Header */}
                   <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
@@ -685,7 +672,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
                     </div>
                   </div>
 
-                  {/* Main Display */}
                   <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 flex flex-col">
                     {res.status === 'idle' && (
                       <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 py-20">
@@ -724,7 +710,6 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
                     )}
                   </div>
 
-                  {/* Footer */}
                   {res.status === 'done' && (
                     <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
                       <button
@@ -745,23 +730,19 @@ Output ONLY valid React TypeScript code directly without markdown descriptions. 
                       </button>
                     </div>
                   )}
-
                 </div>
               );
             })}
           </div>
         </div>
-
       </main>
 
-      {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-bold text-xs shadow-2xl flex items-center gap-2 z-50 animate-bounce">
           <Check className="w-4 h-4" />
           <span>{toast}</span>
         </div>
       )}
-
     </div>
   );
 }
