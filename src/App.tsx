@@ -269,7 +269,6 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Parallell Körning med isolerade try/catch per modell
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -322,7 +321,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
         const latency = Math.round(endTime - startTime);
 
         if (!res.ok) {
-          throw new Error(data.error?.message || \`HTTP \${res.status}\`);
+          throw new Error(data.error?.message || ('HTTP ' + res.status));
         }
 
         if (data.choices && data.choices[0]?.message?.content) {
