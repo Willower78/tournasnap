@@ -84,16 +84,16 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Garanterat synlig synkron Sandbox-motor
+// Slutgiltig robust ESM Native Sandbox Engine
 function generateSandbox(rawCode: string): string {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/export\s+default\s+/g, '');
-  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+  // Auto-reparera avhuggna timers
+  if (code.includes('prevTime +') && !code.includes('prevTime + 1')) {
+    code = code.replace(/prevTime\s*\+\s*$/, 'prevTime + 1);\n    }, 1000);\n  };');
+  }
 
   const safeJson = JSON.stringify(code);
 
@@ -103,53 +103,62 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0?dev",
+      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
+      "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev"
+    }
+  }
+  </script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
 </head>
 <body>
-  <div id="root">
-    <div style="color:#94a3b8;font-size:12px;font-family:monospace;padding:10px;">Laddar komponent...</div>
-  </div>
+  <div id="root"></div>
 
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      try {
-        const { useState, useEffect, useRef, useMemo, useCallback } = React;
-        const IconMock = (props) => React.createElement('span', { className: 'inline-block mx-1' }, '⚡');
-        const LucideIcons = new Proxy({}, { get: () => IconMock });
-        Object.assign(window, {
-          Play: IconMock, Pause: IconMock, RotateCcw: IconMock, Square: IconMock, Clock: IconMock,
-          Trophy: IconMock, Zap: IconMock, Volume2: IconMock, VolumeX: IconMock, Shield: IconMock,
-          Activity: IconMock, Award: IconMock, Plus: IconMock, Minus: IconMock, Users: IconMock,
-          Flame: IconMock, Check: IconMock, Copy: IconMock, Trash2: IconMock, RefreshCw: IconMock,
-          Calendar: IconMock, Timer: IconMock, Settings: IconMock, Bell: IconMock, LucideIcons
-        });
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+    import * as LucideIcons from 'lucide-react';
 
-        const rawSource = ${safeJson};
-        const transpiled = Babel.transform(rawSource, {
-          presets: ['react', 'typescript'],
-          filename: 'app.tsx'
-        }).code;
+    window.React = React;
+    window.ReactDOM = ReactDOM;
+    window.LucideIcons = LucideIcons;
 
-        const runCode = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
-          transpiled + \`
-          const root = ReactDOM.createRoot(document.getElementById('root'));
-          if (typeof App !== 'undefined') root.render(<App />);
-          else if (typeof Scoreboard !== 'undefined') root.render(<Scoreboard />);
-          else if (typeof MatchTimer !== 'undefined') root.render(<MatchTimer />);
-          else if (typeof Component !== 'undefined') root.render(<Component />);
-          else root.render(<div className="p-4 text-emerald-400 font-mono text-xs">✅ Komponent laddad! Se 'Kod' för källkod.</div>);
-        \`);
+    try {
+      let rawSource = ${safeJson};
 
-        runCode(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback);
-      } catch (err) {
-        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox Error: ' + err.message + '</div>';
+      // Rensa bort alla imports och exports
+      rawSource = rawSource.replace(/import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?/gm, '');
+      rawSource = rawSource.replace(/import\\s+['"][^'"]+['"];?/gm, '');
+      rawSource = rawSource.replace(/export\\s+default\\s+/g, '');
+      rawSource = rawSource.replace(/export\\s+(const|let|var|function|class|type|interface)\\s+/g, '$1 ');
+
+      // Transpilera TypeScript + TSX via Babel
+      const transpiled = Babel.transform(rawSource, {
+        presets: ['react', 'typescript'],
+        filename: 'App.tsx'
+      }).code;
+
+      const blob = new Blob([transpiled + "\\n\\nexport { App, Scoreboard, MatchTimer, TimerAndScoreboard, MatchSecretariat, Component };"], { type: 'text/javascript' });
+      const url = URL.createObjectURL(blob);
+      const mod = await import(url);
+
+      const Component = mod.default || mod.App || mod.Scoreboard || mod.MatchTimer || Object.values(mod).find(v => typeof v === 'function');
+
+      if (Component) {
+        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
+      } else {
+        document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Byt till "Kod"-läget för att se källkoden.</div>';
       }
-    });
+    } catch (err) {
+      document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox Error: ' + err.message + '</div>';
+    }
   </script>
 </body>
 </html>`;
@@ -258,7 +267,7 @@ export default function App() {
           return cleanCode;
         }
       } catch (e) {
-        // Fortsätt till nästa modell i listan
+        // Försök nästa fallback
       }
     }
     throw new Error('Alla tillgängliga AI-agenter misslyckades eller saknar krediter.');
@@ -365,7 +374,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
                 <Users className="w-3 h-3" /> Auto-Failover Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Automatisk Agent-Failover & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Native ESM Blob Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
