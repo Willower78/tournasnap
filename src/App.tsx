@@ -78,22 +78,21 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// 100% Rock-Solid Browser Sandbox Engine (CodePen/v0 Architecture)
+// Ren och stabil Sandbox-kompilator
 function createSandboxHtml(rawCode: string) {
-  // 1. Rensa markdown codeblocks
+  // 1. Rensa markdown-block
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // 2. Rensa alla import-rader
+  // 2. Rensa import-rader
   code = code
     .split('\n')
     .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('import{'))
     .join('\n');
 
-  // 3. Konvertera export default till window.__MainComponent
-  code = code.replace(/export\s+default\s+function\s+([A-Za-z0-9_]+)/g, 'function $1;\nwindow.__MainComponent = $1;\nfunction $1');
-  code = code.replace(/export\s+default\s+/g, 'window.__MainComponent = ');
+  // 3. Rensa export-ordet men behåll funktionen / variabeln
+  code = code.replace(/export\s+default\s+/g, '');
   code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
   const jsonCode = JSON.stringify(code);
@@ -115,23 +114,16 @@ function createSandboxHtml(rawCode: string) {
   <div id="root"></div>
 
   <script>
-    // Globals & Shims
-    window.module = { exports: {} };
-    window.exports = window.module.exports;
-    window.__MainComponent = null;
-
-    // React Hooks
+    // Globala shims
     var { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    // Universal Mock för ikoner (Lucide, Heroicons, etc.)
     var IconMock = function(props) {
       return React.createElement('span', {
-        style: { display: 'inline-block', margin: '0 3px', verticalAlign: 'middle', fontSize: '13px' }
+        style: { display: 'inline-block', margin: '0 2px', verticalAlign: 'middle', fontSize: '13px' }
       }, '⚡');
     };
     window.LucideIcons = new Proxy({}, { get: function() { return IconMock; } });
 
-    // Virtuell require-shim
     window.require = function(mod) {
       if (mod === 'react') return window.React;
       if (mod === 'react-dom') return window.ReactDOM;
@@ -148,29 +140,26 @@ function createSandboxHtml(rawCode: string) {
           filename: 'component.tsx'
         }).code;
 
-        // Exekvera källkoden i global kontext
+        // Kör i ett globalt script-block
         var runScript = document.createElement('script');
         runScript.type = 'text/javascript';
         runScript.text = transpiled;
         document.body.appendChild(runScript);
 
         // Hitta den renderbara komponenten
-        var ComponentToRender = window.__MainComponent || window.module.exports.default || window.module.exports;
-
-        if (!ComponentToRender || typeof ComponentToRender !== 'function') {
-          var possible = [
-            'App', 'MatchTimer', 'Scoreboard', 'TimerAndScoreboard',
-            'MatchSecretariat', 'MatchTimerDashboard', 'Dashboard', 'Component'
-          ];
-          for (var i = 0; i < possible.length; i++) {
-            if (typeof window[possible[i]] === 'function') {
-              ComponentToRender = window[possible[i]];
-              break;
-            }
+        var ComponentToRender = null;
+        var possible = [
+          'App', 'MatchTimer', 'Scoreboard', 'TimerAndScoreboard',
+          'MatchSecretariat', 'MatchTimerDashboard', 'Dashboard', 'Component'
+        ];
+        for (var i = 0; i < possible.length; i++) {
+          if (typeof window[possible[i]] === 'function') {
+            ComponentToRender = window[possible[i]];
+            break;
           }
         }
 
-        if (!ComponentToRender || typeof ComponentToRender !== 'function') {
+        if (!ComponentToRender) {
           var keys = Object.keys(window).filter(function(k) {
             return typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML');
           });
@@ -283,8 +272,8 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the component 'App' and export it as 'export default function App()'.
-Output ONLY valid React TypeScript code without markdown descriptions.`;
+Name the component 'App' and declare it with 'function App() { ... }'.
+Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -361,7 +350,7 @@ Output ONLY valid React TypeScript code without markdown descriptions.`;
     setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar TypeScript-arkitektur och state-logik...');
 
     try {
-      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'export default function App()'.`;
+      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'function App() { ... }'.`;
       
       const logicRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -382,7 +371,7 @@ Output ONLY valid React TypeScript code without markdown descriptions.`;
       setSwarmStep('polishing');
       setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
 
-      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code with 'export default function App()'.`;
+      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code with 'function App() { ... }'.`;
 
       const uiRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
