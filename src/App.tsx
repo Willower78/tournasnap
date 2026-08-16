@@ -143,8 +143,9 @@ function generateSandbox(rawCode: string): string {
       try {
         var sourceCode = ${safeJson};
 
+        // Babel transpilering med rena presets: ['react', 'typescript']
         var transpiled = Babel.transform(sourceCode, {
-          presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
+          presets: ['react', 'typescript'],
           filename: 'app.tsx'
         }).code;
 
