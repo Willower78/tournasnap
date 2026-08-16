@@ -78,47 +78,19 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-function cleanCodeForSandbox(raw: string): string {
-  let text = raw
+// Universal ESM Blob Sandbox Generator
+function generateSandbox(rawCode: string): string {
+  let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  const lines = text.split('\n');
-  const resultLines: string[] = [];
-  let skippingImport = false;
+  // Fullständig rensning av imports för att förhindra modulkrascher
+  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/export\s+default\s+/g, '');
+  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
-  for (let line of lines) {
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('import ') || trimmed.startsWith('import{')) {
-      if (!trimmed.includes('from') && !trimmed.endsWith(';')) {
-        skippingImport = true;
-      }
-      continue;
-    }
-
-    if (skippingImport) {
-      if (trimmed.includes('from') || trimmed.endsWith(';') || trimmed.includes("';") || trimmed.includes('";')) {
-        skippingImport = false;
-      }
-      continue;
-    }
-
-    if (trimmed.startsWith('export default ')) {
-      line = line.replace('export default ', '');
-    } else if (trimmed.startsWith('export ')) {
-      line = line.replace('export ', '');
-    }
-
-    resultLines.push(line);
-  }
-
-  return resultLines.join('\n');
-}
-
-function generateSandbox(rawCode: string): string {
-  const sanitized = cleanCodeForSandbox(rawCode);
-  const safeJson = JSON.stringify(sanitized);
+  const safeJson = JSON.stringify(code);
 
   return `<!DOCTYPE html>
 <html>
@@ -126,9 +98,17 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0?dev",
+      "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
+      "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev"
+    }
+  }
+  </script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
@@ -136,63 +116,43 @@ function generateSandbox(rawCode: string): string {
 <body>
   <div id="root"></div>
 
-  <script>
-    var { useState, useEffect, useRef, useMemo, useCallback } = React;
+  <script type="module">
+    import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+    import ReactDOM from 'react-dom/client';
+    import * as LucideIcons from 'lucide-react';
 
-    function makeIcon() {
-      return function(props) {
-        var size = props && props.size ? props.size : 16;
-        var className = props && props.className ? props.className : "inline-block";
-        return React.createElement('svg', {
-          width: size,
-          height: size,
-          viewBox: "0 0 24 24",
-          fill: "none",
-          stroke: "currentColor",
-          strokeWidth: "2",
-          strokeLinecap: "round",
-          strokeLinejoin: "round",
-          className: className
-        }, React.createElement('circle', { cx: "12", cy: "12", r: "10" }));
-      };
-    }
+    window.React = React;
+    window.ReactDOM = ReactDOM;
 
-    var iconNames = ['Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX', 'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users', 'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'];
-    iconNames.forEach(function(k) { window[k] = makeIcon(k); });
-    window.LucideIcons = new Proxy({}, { get: function() { return makeIcon(); } });
+    // Gör alla Lucide-ikoner tillgängliga globalt
+    Object.keys(LucideIcons).forEach(function(key) {
+      window[key] = LucideIcons[key];
+    });
 
-    window.onload = function() {
-      try {
-        var sourceCode = ${safeJson};
+    try {
+      const source = ${safeJson};
 
-        var transpiled = Babel.transform(sourceCode, {
-          presets: ['react', 'typescript'],
-          filename: 'app.tsx'
-        }).code;
+      // Transpilera TypeScript + TSX via Babel
+      const transpiled = Babel.transform(source, {
+        presets: ['react', 'typescript'],
+        filename: 'App.tsx'
+      }).code;
 
-        var evalScope = new Function(
-          'React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
-          transpiled + "\\n;\\n" +
-          "if (typeof App !== 'undefined') return App;\\n" +
-          "if (typeof Scoreboard !== 'undefined') return Scoreboard;\\n" +
-          "if (typeof MatchTimer !== 'undefined') return MatchTimer;\\n" +
-          "if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard;\\n" +
-          "if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat;\\n" +
-          "if (typeof Component !== 'undefined') return Component;\\n" +
-          "return null;"
-        );
+      // Exekvera som en ren ES-modul via Blob URL
+      const blob = new Blob([transpiled + "\\n\\nexport { App, Scoreboard, MatchTimer, TimerAndScoreboard, MatchSecretariat, Component };"], { type: 'text/javascript' });
+      const url = URL.createObjectURL(blob);
+      const mod = await import(url);
 
-        var TargetComp = evalScope(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback);
+      const Component = mod.default || mod.App || mod.Scoreboard || mod.MatchTimer || Object.values(mod).find(v => typeof v === 'function');
 
-        if (TargetComp && typeof TargetComp === 'function') {
-          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TargetComp));
-        } else {
-          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Byt till "Kod"-läget för att se källkoden.</div>';
-        }
-      } catch (err) {
-        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+      if (Component) {
+        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component));
+      } else {
+        document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Byt till "Kod"-läget för att se källkoden.</div>';
       }
-    };
+    } catch (err) {
+      document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
+    }
   </script>
 </body>
 </html>`;
@@ -289,7 +249,7 @@ export default function App() {
     const systemPrompt = `You are an elite React engineer.
 Write a single, complete functional component named 'App' using Tailwind CSS based on the user request.
 Export it with 'export default function App()'.
-Output ONLY executable React TypeScript JSX without markdown backticks. Ensure the code is fully closed, concise, and complete within 2000 tokens.`;
+Output ONLY executable React TypeScript JSX without markdown backticks. Ensure the code is fully closed and complete.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -308,7 +268,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 2000,
+            max_tokens: 2500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -430,7 +390,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
                 <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Live Sandbox & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Native ESM Blob Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
