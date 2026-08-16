@@ -78,7 +78,7 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Fullständig sandbox som garanterat fångar upp alla komponenter
+// Sandbox Compiler med komplett Babel TypeScript-stöd
 function createSandboxHtml(codeString: string) {
   let clean = codeString
     .replace(/^```[a-z]*\n?/gm, '')
@@ -86,6 +86,8 @@ function createSandboxHtml(codeString: string) {
     .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
     .replace(/export\s+default\s+/g, 'window.__ExportedTarget = ')
     .replace(/export\s+/g, '');
+
+  const jsonCode = JSON.stringify(clean);
 
   return `<!DOCTYPE html>
 <html>
@@ -102,14 +104,33 @@ function createSandboxHtml(codeString: string) {
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel">
+  <script type="text/javascript">
+    window.__RAW_CODE = ${jsonCode};
+  </script>
+  <script type="text/babel" data-presets="react,typescript">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
-    
+
     try {
       window.__ExportedTarget = null;
-      ${clean}
+      
+      // Kör den källkod som skickades in
+      eval(Babel.transform(window.__RAW_CODE, { presets: ['react', 'typescript'] }).code);
 
       let Target = window.__ExportedTarget;
+      if (!Target) {
+        const possibleNames = [
+          'App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 
+          'MatchSecretariat', 'MatchTimerDashboard', 'Component',
+          'MatchScoreboard', 'Timer', 'Dashboard'
+        ];
+        for (const name of possibleNames) {
+          if (typeof window[name] === 'function') {
+            Target = window[name];
+            break;
+          }
+        }
+      }
+
       if (!Target) {
         const funcs = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML'));
         if (funcs.length > 0) {
@@ -680,7 +701,7 @@ Output ONLY the clean executable code directly without markdown backtick wrapper
                     )}
                   </div>
 
-                  {/* Footer - The Swarm Trigger */}
+                  {/* Footer */}
                   {res.status === 'done' && (
                     <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
                       <button
