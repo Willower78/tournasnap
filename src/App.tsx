@@ -13,6 +13,7 @@ interface ModelTarget {
   color: string;
   badge: string;
   role: string;
+  fallbackModel?: string;
 }
 
 interface ModelResult {
@@ -23,50 +24,56 @@ interface ModelResult {
   errorMsg?: string;
 }
 
+// Uppdaterade med OpenRouters ledande gratismodeller
 const ALL_MODELS: ModelTarget[] = [
   {
-    id: 'gemini-flash',
-    name: 'Gemini 2.5 Flash',
-    provider: 'Google',
-    modelString: 'google/gemini-2.5-flash',
+    id: 'nemotron-ultra',
+    name: 'Nemotron 3 Ultra 550B',
+    provider: 'NVIDIA',
+    modelString: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    fallbackModel: 'openai/gpt-oss-120b:free',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: 'Standard',
+    badge: '1M Context',
     role: 'Master Synthesizer'
   },
   {
-    id: 'qwen-coder',
-    name: 'Qwen 2.5 Coder 32B',
-    provider: 'Alibaba',
-    modelString: 'qwen/qwen-2.5-coder-32b-instruct',
+    id: 'gpt-oss',
+    name: 'OpenAI GPT-OSS 120B',
+    provider: 'OpenAI',
+    modelString: 'openai/gpt-oss-120b:free',
+    fallbackModel: 'nvidia/nemotron-3-nano-30b-a3b:free',
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-    badge: 'Top Full-Stack',
+    badge: 'Top Coding',
     role: 'TypeScript & Arkitektur'
   },
   {
-    id: 'deepseek-chat',
-    name: 'DeepSeek V3',
-    provider: 'DeepSeek',
-    modelString: 'deepseek/deepseek-chat',
+    id: 'gemma-it',
+    name: 'Google Gemma 4 31B',
+    provider: 'Google',
+    modelString: 'google/gemma-4-31b-it:free',
+    fallbackModel: 'openai/gpt-oss-20b:free',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    badge: 'High Speed',
+    badge: 'Multilingual',
     role: 'Logik & Edge Cases'
   },
   {
-    id: 'llama-3-3',
-    name: 'Llama 3.3 70B',
+    id: 'llama-free',
+    name: 'Llama 3.3 70B Instruct',
     provider: 'Meta',
-    modelString: 'meta-llama/llama-3.3-70b-instruct',
+    modelString: 'meta-llama/llama-3.3-70b-instruct:free',
+    fallbackModel: 'nvidia/nemotron-3-nano-30b-a3b:free',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
     badge: 'Ultra Fast',
     role: 'UI & Interaktioner'
   },
   {
-    id: 'mistral-small',
-    name: 'Mistral Small 24B',
-    provider: 'Mistral AI',
-    modelString: 'mistralai/mistral-small-24b-instruct-2501',
+    id: 'nemotron-nano',
+    name: 'Nemotron 3 Nano 30B',
+    provider: 'NVIDIA',
+    modelString: 'nvidia/nemotron-3-nano-30b-a3b:free',
+    fallbackModel: 'openai/gpt-oss-20b:free',
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-    badge: 'Strict Logic',
+    badge: 'High Efficiency',
     role: 'Validering & Stabilitet'
   }
 ];
@@ -78,36 +85,17 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Supereffektiv rensare som tar bort alla imports/exports rad för rad
-function sanitizeCode(raw: string): string {
-  let text = raw
+function generateSandbox(rawCode: string): string {
+  let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  const lines = text.split('\n');
-  const cleanLines = [];
-  let skipping = false;
+  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/export\s+default\s+/g, '');
+  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
-  for (let line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('import ') || trimmed.startsWith('import{')) {
-      if (!trimmed.includes('from') && !trimmed.endsWith(';')) skipping = true;
-      continue;
-    }
-    if (skipping) {
-      if (trimmed.includes('from') || trimmed.endsWith(';')) skipping = false;
-      continue;
-    }
-    if (trimmed.startsWith('export default ')) line = line.replace('export default ', '');
-    else if (trimmed.startsWith('export ')) line = line.replace('export ', '');
-    cleanLines.push(line);
-  }
-  return cleanLines.join('\n');
-}
-
-function generateSandbox(rawCode: string): string {
-  const sanitized = sanitizeCode(rawCode);
-  const safeJson = JSON.stringify(sanitized);
+  const safeJson = JSON.stringify(code);
 
   return `<!DOCTYPE html>
 <html>
@@ -170,7 +158,7 @@ export default function App() {
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
+    'nemotron-ultra', 'gpt-oss', 'gemma-it', 'llama-free', 'nemotron-nano'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
@@ -214,7 +202,7 @@ export default function App() {
 
   const selectAll = () => {
     setSelectedModelIds(ALL_MODELS.map(m => m.id));
-    showToast('⚡ Alla modeller valda!');
+    showToast('⚡ Alla gratismodeller valda!');
   };
 
   const copyText = (id: string, text: string) => {
@@ -233,6 +221,45 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
     showToast('💾 Fil nedladdad!');
+  };
+
+  // Failover-funktion som automatiskt provar reservmodeller
+  const callModelWithFailover = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string) => {
+    const modelsToTry = [modelCfg.modelString, modelCfg.fallbackModel].filter(Boolean) as string[];
+
+    for (const modelSlug of modelsToTry) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey.trim()}`,
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'VibeCoder Swarm Studio'
+          },
+          body: JSON.stringify({
+            model: modelSlug,
+            max_tokens: 2500,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ]
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.choices && data.choices[0]?.message?.content) {
+          let cleanCode = data.choices[0].message.content.trim();
+          if (cleanCode.startsWith('```')) {
+            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+          }
+          return cleanCode;
+        }
+      } catch (e) {
+        // Gå vidare till nästa modell
+      }
+    }
+    throw new Error('Alla fria agenter är upptagna eller nådde dagsgränsen.');
   };
 
   const executeParallelGeneration = async () => {
@@ -264,42 +291,14 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
       const startTime = performance.now();
 
       try {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey.trim()}`,
-            'HTTP-Referer': window.location.origin,
-            'X-Title': 'VibeCoder Swarm Studio'
-          },
-          body: JSON.stringify({
-            model: modelCfg.modelString,
-            max_tokens: 3000,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt }
-            ]
-          })
-        });
-
-        const data = await res.json();
+        const cleanCode = await callModelWithFailover(modelCfg, systemPrompt, prompt);
         const endTime = performance.now();
         const latency = Math.round(endTime - startTime);
 
-        if (!res.ok) throw new Error(data.error?.message || ('HTTP ' + res.status));
-
-        if (data.choices && data.choices[0]?.message?.content) {
-          let cleanCode = data.choices[0].message.content.trim();
-          if (cleanCode.startsWith('```')) {
-            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
-          }
-          setResults(prev => ({
-            ...prev,
-            [modelId]: { modelId, code: cleanCode, status: 'done', latencyMs: latency }
-          }));
-        } else {
-          throw new Error('Ogiltigt svar');
-        }
+        setResults(prev => ({
+          ...prev,
+          [modelId]: { modelId, code: cleanCode, status: 'done', latencyMs: latency }
+        }));
       } catch (err: any) {
         setResults(prev => ({
           ...prev,
@@ -316,26 +315,13 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
     setSwarmProgressText('🧠 AI-teamet optimerar arkitektur och logik...');
 
     try {
-      const qwenCfg = ALL_MODELS.find(m => m.id === 'qwen-coder')!;
-      const res = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'HTTP-Referer': window.location.origin
-        },
-        body: JSON.stringify({
-          model: qwenCfg.modelString,
-          max_tokens: 3000,
-          messages: [
-            { role: 'system', content: 'You are an expert React architect.' },
-            { role: 'user', content: 'Enhance this React component with robust state and styling: \n' + baseCode }
-          ]
-        })
-      });
-      const data = await res.json();
-      let masterCode = data.choices[0].message.content.trim();
-      if (masterCode.startsWith('```')) masterCode = masterCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+      const gptCfg = ALL_MODELS.find(m => m.id === 'gpt-oss')!;
+      const upgradedLogicCode = await callModelWithFailover(gptCfg, 'You are an expert React architect.', 'Enhance this component: \n' + baseCode);
+
+      setSwarmStep('polishing');
+      setSwarmProgressText('✨ Slutgiltig UI-förädling...');
+
+      const masterCode = await callModelWithFailover(ALL_MODELS[0], 'You are an elite UI designer.', 'Polish this React component: \n' + upgradedLogicCode);
 
       setSwarmStep('done');
       setFinalMasterCode(masterCode);
@@ -358,7 +344,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
             <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
               <span>VibeCoder Swarm Studio</span>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 rounded-full font-bold flex items-center gap-1">
-                <Users className="w-3 h-3" /> Multi-Agent Swarm
+                <Users className="w-3 h-3" /> Gratis-AI Swarm
               </span>
             </h1>
           </div>
@@ -395,7 +381,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
         <div className="bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 shadow-2xl space-y-5 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-300">Fas 1: Välj koncept-arkitekter ({selectedModelIds.length} aktiva):</span>
+              <span className="text-xs font-bold text-slate-300">Fas 1: Välj fria koncept-arkitekter ({selectedModelIds.length} aktiva):</span>
               <button onClick={selectAll} className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-lg hover:bg-cyan-500/20 transition">
                 ⚡ Välj alla modeller
               </button>
@@ -437,7 +423,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
               className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-40 text-white font-black px-8 py-4 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2.5 transition shadow-2xl shadow-indigo-600/30 active:scale-95"
             >
               <Zap className="w-4 h-4 fill-white" />
-              <span>Generera Grundkoncept ({selectedModelIds.length} Modeller)</span>
+              <span>Generera Grundkoncept ({selectedModelIds.length} Fria Modeller)</span>
             </button>
           </div>
         </div>
@@ -492,7 +478,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
 
                   <div className="flex-1 min-h-[380px] bg-slate-950 flex flex-col">
                     {res.status === 'idle' && <div className="h-full flex items-center justify-center text-slate-600 text-xs py-20">Redo för koncept-race</div>}
-                    {res.status === 'generating' && <div className="h-full flex items-center justify-center text-indigo-400 text-xs py-20 animate-pulse">Genererar...</div>}
+                    {res.status === 'generating' && <div className="h-full flex items-center justify-center text-indigo-400 text-xs py-20 animate-pulse">Genererar med fri AI...</div>}
                     {res.status === 'error' && <div className="p-4 text-red-400 text-xs">{res.errorMsg}</div>}
                     {res.status === 'done' && (
                       currentView === 'preview' ? (
