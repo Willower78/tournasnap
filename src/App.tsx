@@ -78,16 +78,21 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// Sandbox Compiler med komplett Babel TypeScript-stöd
-function createSandboxHtml(codeString: string) {
-  let clean = codeString
-    .replace(/^```[a-z]*\n?/gm, '')
-    .replace(/\n?```$/gm, '')
-    .replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '')
-    .replace(/export\s+default\s+/g, 'window.__ExportedTarget = ')
-    .replace(/export\s+/g, '');
+// 100% Robust Sandbox Sanitizer & Compiler
+function createSandboxHtml(rawCode: string) {
+  // Rensa markdown codeblocks
+  let code = rawCode
+    .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
+    .replace(/\n?```$/gm, '');
 
-  const jsonCode = JSON.stringify(clean);
+  // Ersätt alla import-satser med tomma strängar
+  code = code.replace(/import\s+(?:[\w*\s{},]*)\s+from\s+['"][^'"]+['"];?/g, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
+
+  // Hantera export default
+  code = code.replace(/export\s+default\s+function\s+([A-Za-z0-9_]+)/g, 'function $1');
+  code = code.replace(/export\s+default\s+/g, 'window.__RootComponent = ');
+  code = code.replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
 
   return `<!DOCTYPE html>
 <html>
@@ -95,56 +100,66 @@ function createSandboxHtml(codeString: string) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 12px; }
   </style>
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/javascript">
-    window.__RAW_CODE = ${jsonCode};
-  </script>
+
   <script type="text/babel" data-presets="react,typescript">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
-    try {
-      window.__ExportedTarget = null;
-      
-      // Kör den källkod som skickades in
-      eval(Babel.transform(window.__RAW_CODE, { presets: ['react', 'typescript'] }).code);
+    // Fallback UI Icons Mock
+    const LucideIcon = ({ name }) => (
+      <span className="inline-flex items-center justify-center w-4 h-4 text-xs">⚡</span>
+    );
+    window.LucideIcons = new Proxy({}, { get: () => LucideIcon });
 
-      let Target = window.__ExportedTarget;
-      if (!Target) {
-        const possibleNames = [
+    try {
+      window.__RootComponent = null;
+
+      ${code}
+
+      let TargetComp = window.__RootComponent;
+
+      if (!TargetComp) {
+        const checkNames = [
           'App', 'MatchTimer', 'TimerAndScoreboard', 'Scoreboard', 
           'MatchSecretariat', 'MatchTimerDashboard', 'Component',
           'MatchScoreboard', 'Timer', 'Dashboard'
         ];
-        for (const name of possibleNames) {
+        for (const name of checkNames) {
           if (typeof window[name] === 'function') {
-            Target = window[name];
+            TargetComp = window[name];
             break;
           }
         }
       }
 
-      if (!Target) {
-        const funcs = Object.keys(window).filter(k => typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML'));
-        if (funcs.length > 0) {
-          Target = window[funcs[funcs.length - 1]];
+      if (!TargetComp) {
+        const declared = Object.keys(window).filter(k => 
+          typeof window[k] === 'function' && 
+          /^[A-Z]/.test(k) && 
+          !k.startsWith('React') && 
+          !k.startsWith('Babel') && 
+          !k.startsWith('HTML')
+        );
+        if (declared.length > 0) {
+          TargetComp = window[declared[declared.length - 1]];
         }
       }
 
-      if (Target) {
-        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Target));
+      if (TargetComp) {
+        ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TargetComp));
       } else {
-        document.getElementById('root').innerHTML = '<div class="p-4 text-emerald-400 font-mono text-xs">✅ Kod genererad. Växla till "Kod"-läget för att se källkoden.</div>';
+        document.getElementById('root').innerHTML = '<div class="p-4 text-slate-400 font-mono text-xs">✅ Kod genererad. Växla till "Kod"-läget för att se källkoden.</div>';
       }
     } catch (err) {
-      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ ' + err.message + '</div>';
+      document.getElementById('root').innerHTML = '<div class="p-3 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 font-mono text-xs">⚠️ Sandbox Error: ' + err.message + '</div>';
     }
   </script>
 </body>
@@ -241,8 +256,8 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Export the component with 'export default function App() { ... }'.
-Output ONLY the clean executable code directly without markdown backtick wrappers or explanations.`;
+Make sure the main component is named 'App' and exported as 'export default function App()'.
+Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
