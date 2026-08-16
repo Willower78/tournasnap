@@ -13,6 +13,7 @@ interface ModelTarget {
   color: string;
   badge: string;
   role: string;
+  fallbackModel?: string;
 }
 
 interface ModelResult {
@@ -29,6 +30,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Gemini 2.5 Flash',
     provider: 'Google',
     modelString: 'google/gemini-2.5-flash',
+    fallbackModel: 'qwen/qwen-2.5-coder-32b-instruct',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
     badge: 'Standard',
     role: 'Master Synthesizer'
@@ -38,6 +40,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Qwen 2.5 Coder 32B',
     provider: 'Alibaba',
     modelString: 'qwen/qwen-2.5-coder-32b-instruct',
+    fallbackModel: 'deepseek/deepseek-chat',
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
     badge: 'Top Full-Stack',
     role: 'TypeScript & Arkitektur'
@@ -47,6 +50,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'DeepSeek V3',
     provider: 'DeepSeek',
     modelString: 'deepseek/deepseek-chat',
+    fallbackModel: 'meta-llama/llama-3.3-70b-instruct',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
     badge: 'High Speed',
     role: 'Logik & Edge Cases'
@@ -56,6 +60,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Llama 3.3 70B',
     provider: 'Meta',
     modelString: 'meta-llama/llama-3.3-70b-instruct',
+    fallbackModel: 'mistralai/mistral-small-24b-instruct-2501',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
     badge: 'Ultra Fast',
     role: 'UI & Interaktioner'
@@ -65,6 +70,7 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Mistral Small 24B',
     provider: 'Mistral AI',
     modelString: 'mistralai/mistral-small-24b-instruct-2501',
+    fallbackModel: 'qwen/qwen-2.5-coder-32b-instruct',
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
     badge: 'Strict Logic',
     role: 'Validering & Stabilitet'
@@ -96,9 +102,7 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
@@ -121,15 +125,13 @@ function generateSandbox(rawCode: string): string {
 
     try {
       const sourceCode = ${safeJson};
-      
-      // Skapa ett dynamiskt script-element för att köra koden
       const script = document.createElement('script');
       script.type = 'text/babel';
       script.setAttribute('data-presets', 'react,typescript');
       script.text = sourceCode + "\\n\\ntry {\\n  const root = ReactDOM.createRoot(document.getElementById('root'));\\n  if (typeof App !== 'undefined') root.render(<App />);\\n  else if (typeof Scoreboard !== 'undefined') root.render(<Scoreboard />);\\n  else if (typeof MatchTimer !== 'undefined') root.render(<MatchTimer />);\\n  else if (typeof Component !== 'undefined') root.render(<Component />);\\n} catch(e) {}";
       document.body.appendChild(script);
     } catch (err) {
-      document.getElementById('root'].innerHTML = '<div style="color:#f87171;padding:10px;">Error: ' + err.message + '</div>';
+      document.getElementById('root').innerHTML = '<div style="color:#f87171;padding:10px;">Error: ' + err.message + '</div>';
     }
   </script>
 </body>
@@ -207,6 +209,46 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
+  // Anropa OpenRouter med automatisk Auto-Failover om en modell misslyckas (t.ex. 402/404)
+  const callModelWithFailover = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string) => {
+    const modelsToTry = [modelCfg.modelString, modelCfg.fallbackModel].filter(Boolean) as string[];
+
+    for (const modelSlug of modelsToTry) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          model: modelSlug,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey.trim()}`,
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'VibeCoder Swarm Studio'
+          },
+          body: JSON.stringify({
+            model: modelSlug,
+            max_tokens: 2500,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ]
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.choices && data.choices[0]?.message?.content) {
+          let cleanCode = data.choices[0].message.content.trim();
+          if (cleanCode.startsWith('```')) {
+            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+          }
+          return cleanCode;
+        }
+      } catch (e) {
+        // Försök nästa fallback-modell i listan
+      }
+    }
+    throw new Error('Alla tillgängliga AI-agenter misslyckades eller saknar krediter.');
+  };
+
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -236,49 +278,19 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
       const startTime = performance.now();
 
       try {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey.trim()}`,
-            'HTTP-Referer': window.location.origin,
-            'X-Title': 'VibeCoder Swarm Studio'
-          },
-          body: JSON.stringify({
-            model: modelCfg.modelString,
-            max_tokens: 2500,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: prompt }
-            ]
-          })
-        });
-
-        const data = await res.json();
+        const cleanCode = await callModelWithFailover(modelCfg, systemPrompt, prompt);
         const endTime = performance.now();
         const latency = Math.round(endTime - startTime);
 
-        if (!res.ok) {
-          throw new Error(data.error?.message || ('HTTP ' + res.status));
-        }
-
-        if (data.choices && data.choices[0]?.message?.content) {
-          let cleanCode = data.choices[0].message.content.trim();
-          if (cleanCode.startsWith('```')) {
-            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+        setResults(prev => ({
+          ...prev,
+          [modelId]: {
+            modelId,
+            code: cleanCode,
+            status: 'done',
+            latencyMs: latency
           }
-          setResults(prev => ({
-            ...prev,
-            [modelId]: {
-              modelId,
-              code: cleanCode,
-              status: 'done',
-              latencyMs: latency
-            }
-          }));
-        } else {
-          throw new Error('Ogiltigt svar från OpenRouter');
-        }
+        }));
       } catch (err: any) {
         setResults(prev => ({
           ...prev,
@@ -297,56 +309,26 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
 
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
     setSwarmStep('analyzing');
-    setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar arkitektur och logik...');
+    setSwarmProgressText('🧠 Steg 1/2: Tillgängliga AI-agenter optimerar arkitektur och logik...');
 
     try {
+      const qwenCfg = ALL_MODELS.find(m => m.id === 'qwen-coder')!;
       const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'export default function App()'.`;
       
-      const logicRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'HTTP-Referer': window.location.origin
-        },
-        body: JSON.stringify({
-          model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 2500,
-          messages: [{ role: 'user', content: logicPrompt }]
-        })
-      });
-      const logicData = await logicRes.json();
-      const upgradedLogicCode = logicData.choices?.[0]?.message?.content || baseCode;
+      const upgradedLogicCode = await callModelWithFailover(qwenCfg, 'You are an expert React architect.', logicPrompt);
 
       setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI och sammanställer slutkoden...');
+      setSwarmProgressText('✨ Steg 2/2: Backup-agenten förädlar Tailwind UI och sammanställer slutkoden...');
 
+      const geminiCfg = ALL_MODELS.find(m => m.id === 'gemini-flash')!;
       const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY clean code with 'export default function App()'.`;
 
-      const uiRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey.trim()}`,
-          'HTTP-Referer': window.location.origin
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          max_tokens: 2500,
-          messages: [{ role: 'user', content: uiPrompt }]
-        })
-      });
-      const uiData = await uiRes.json();
-      let masterCode = uiData.choices?.[0]?.message?.content || upgradedLogicCode;
-
-      if (masterCode.startsWith('```')) {
-        masterCode = masterCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
-      }
+      const masterCode = await callModelWithFailover(geminiCfg, 'You are an elite UI designer.', uiPrompt);
 
       setSwarmStep('done');
       setFinalMasterCode(masterCode);
       setMasterView('preview');
-      showToast('🏆 Master Synthesizer har sammanställt den ultimata komponenten!');
+      showToast('🏆 Swarm-teamet har sammanställt den ultimata komponenten!');
 
     } catch (err: any) {
       setSwarmStep('idle');
@@ -365,10 +347,10 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
             <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
               <span>VibeCoder Swarm Studio</span>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 rounded-full font-bold flex items-center gap-1">
-                <Users className="w-3 h-3" /> Multi-Agent Swarm
+                <Users className="w-3 h-3" /> Auto-Failover Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Inline Babel Sandbox & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Automatisk Agent-Failover & Kollektiv AI-syntes</p>
           </div>
         </div>
 
