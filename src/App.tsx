@@ -78,19 +78,15 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// 100% Rock-Solid In-Memory Component Sandbox
+// 100% Robust In-Memory Component Sandbox
 function createSandboxHtml(rawCode: string) {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // Ta bort import-rader
-  code = code
-    .split('\n')
-    .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('import{'))
-    .join('\n');
-
-  // Ta bort export-nyckelord
+  // Fullständig multiline import-rensning
+  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
   code = code.replace(/export\s+default\s+/g, '');
   code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
@@ -113,14 +109,14 @@ function createSandboxHtml(rawCode: string) {
   <div id="root"></div>
 
   <script>
-    // 1. React Hooks & Globals
+    // 1. React Hooks i global scope
     window.useState = React.useState;
     window.useEffect = React.useEffect;
     window.useRef = React.useRef;
     window.useMemo = React.useMemo;
     window.useCallback = React.useCallback;
 
-    // 2. Ikon-generator
+    // 2. Mock för alla ikoner
     function makeIcon(name) {
       return function(props) {
         var size = props && props.size ? props.size : 18;
@@ -153,13 +149,13 @@ function createSandboxHtml(rawCode: string) {
       try {
         var rawSource = ${jsonCode};
 
-        // Transpilera TypeScript + JSX med Babel
+        // Transpilera TypeScript + JSX
         var transpiled = Babel.transform(rawSource, {
           presets: ['react', 'typescript'],
           filename: 'component.tsx'
         }).code;
 
-        // Bygg en exekverings-wrapper som automatiskt hittar och returnerar komponenten
+        // Evaluera och fånga komponenten
         var executable = "(function() {\\n" +
           "  var useState = React.useState;\\n" +
           "  var useEffect = React.useEffect;\\n" +
@@ -284,7 +280,7 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the main component 'App' or 'Scoreboard'.
+Name the component 'App' or 'Scoreboard'.
 Output ONLY valid React executable code without markdown explanations.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
@@ -304,7 +300,7 @@ Output ONLY valid React executable code without markdown explanations.`;
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 4000,
+            max_tokens: 5000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -373,7 +369,7 @@ Output ONLY valid React executable code without markdown explanations.`;
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 4000,
+          max_tokens: 5000,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -394,7 +390,7 @@ Output ONLY valid React executable code without markdown explanations.`;
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 4000,
+          max_tokens: 5000,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
