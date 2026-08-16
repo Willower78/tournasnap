@@ -1,190 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { ALL_MODELS, CODE_PRESETS, ModelResult } from './types';
+import { ModelCard } from './components/ModelCard';
+import { SwarmResult } from './components/SwarmResult';
 import { 
-  Zap, Trophy, Code2, Key, RefreshCw, Cpu, Check, 
-  Copy, Download, Sparkles, Rocket, Bookmark, 
-  Swords, Users, Flame, Eye, AlertCircle
+  Zap, Key, Cpu, Rocket, Bookmark, Swords, Users, Flame, RefreshCw, Check 
 } from 'lucide-react';
-
-interface ModelTarget {
-  id: string;
-  name: string;
-  provider: string;
-  modelString: string;
-  color: string;
-  badge: string;
-  role: string;
-}
-
-const ALL_MODELS: ModelTarget[] = [
-  {
-    id: 'gemini-flash',
-    name: 'Gemini 3.1 / 2.5 Flash',
-    provider: 'Google',
-    modelString: 'google/gemini-2.5-flash',
-    color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
-    badge: '1M Context',
-    role: 'Master Synthesizer'
-  },
-  {
-    id: 'qwen-coder',
-    name: 'Qwen 2.5 Coder 32B',
-    provider: 'Alibaba',
-    modelString: 'qwen/qwen-2.5-coder-32b-instruct',
-    color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
-    badge: 'Top Full-Stack',
-    role: 'TypeScript & Arkitektur'
-  },
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek V3 / Coder',
-    provider: 'DeepSeek',
-    modelString: 'deepseek/deepseek-chat',
-    color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
-    badge: 'High Speed Logic',
-    role: 'Logik & Edge Cases'
-  },
-  {
-    id: 'llama-3-3',
-    name: 'Llama 3.3 70B',
-    provider: 'Meta',
-    modelString: 'meta-llama/llama-3.3-70b-instruct',
-    color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
-    badge: 'Ultra Fast',
-    role: 'UI & Interaktioner'
-  },
-  {
-    id: 'mistral-small',
-    name: 'Mistral Small 24B',
-    provider: 'Mistral AI',
-    modelString: 'mistralai/mistral-small-24b-instruct-2501',
-    color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
-    badge: 'Strict Logic',
-    role: 'Validering & Stabilitet'
-  }
-];
-
-const CODE_PRESETS = [
-  "Bygg en modern timer- och resultattavla för matchsekretariat med mörk sportdesign i Tailwind CSS.",
-  "Skapa en interaktiv krypto- och aktieportfölj med live PnL, donut-diagram och köp/sälj-modal.",
-  "Bygg en Kanban board för sprint-planering med Drag and Drop, etiketter och prioriteringar.",
-  "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
-];
-
-interface ModelResult {
-  modelId: string;
-  code: string;
-  status: 'idle' | 'generating' | 'done' | 'error';
-  latencyMs?: number;
-  errorMsg?: string;
-}
-
-// 100% Robust In-Memory Component Sandbox
-function createSandboxHtml(rawCode: string) {
-  let code = rawCode
-    .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
-    .replace(/\n?```$/gm, '');
-
-  // Komplett multiline import-rensning
-  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/g, '');
-  code = code.replace(/export\s+default\s+/g, '');
-  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
-
-  const jsonCode = JSON.stringify(code);
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-
-  <script>
-    window.useState = React.useState;
-    window.useEffect = React.useEffect;
-    window.useRef = React.useRef;
-    window.useMemo = React.useMemo;
-    window.useCallback = React.useCallback;
-
-    function makeIcon(name) {
-      return function(props) {
-        var size = props && props.size ? props.size : 18;
-        var className = props && props.className ? props.className : "inline-block";
-        return React.createElement('svg', {
-          width: size,
-          height: size,
-          viewBox: "0 0 24 24",
-          fill: "none",
-          stroke: "currentColor",
-          strokeWidth: "2",
-          strokeLinecap: "round",
-          strokeLinejoin: "round",
-          className: className
-        }, React.createElement('circle', { cx: "12", cy: "12", r: "10" }));
-      };
-    }
-
-    var iconList = [
-      'Play', 'Pause', 'RotateCcw', 'Square', 'Clock', 'Trophy', 'Zap', 'Volume2', 'VolumeX',
-      'Shield', 'Activity', 'Award', 'Plus', 'Minus', 'ChevronUp', 'ChevronDown', 'Users',
-      'Flame', 'Check', 'Copy', 'Trash2', 'RefreshCw', 'Calendar', 'Timer', 'Settings', 'Bell'
-    ];
-    for (var i = 0; i < iconList.length; i++) {
-      window[iconList[i]] = makeIcon(iconList[i]);
-    }
-    window.LucideIcons = new Proxy({}, { get: function(target, prop) { return makeIcon(prop); } });
-
-    window.onload = function() {
-      try {
-        var rawSource = ${jsonCode};
-
-        var transpiled = Babel.transform(rawSource, {
-          presets: ['react', 'typescript'],
-          filename: 'component.tsx'
-        }).code;
-
-        var executable = "(function() {\\n" +
-          "  var useState = React.useState;\\n" +
-          "  var useEffect = React.useEffect;\\n" +
-          "  var useRef = React.useRef;\\n" +
-          "  var useMemo = React.useMemo;\\n" +
-          "  var useCallback = React.useCallback;\\n" +
-          transpiled + "\\n;\\n" +
-          "  try { if (typeof App !== 'undefined') return App; } catch(e){}\\n" +
-          "  try { if (typeof MatchTimer !== 'undefined') return MatchTimer; } catch(e){}\\n" +
-          "  try { if (typeof Scoreboard !== 'undefined') return Scoreboard; } catch(e){}\\n" +
-          "  try { if (typeof TimerAndScoreboard !== 'undefined') return TimerAndScoreboard; } catch(e){}\\n" +
-          "  try { if (typeof MatchSecretariat !== 'undefined') return MatchSecretariat; } catch(e){}\\n" +
-          "  try { if (typeof MatchTimerDashboard !== 'undefined') return MatchTimerDashboard; } catch(e){}\\n" +
-          "  try { if (typeof Dashboard !== 'undefined') return Dashboard; } catch(e){}\\n" +
-          "  try { if (typeof Component !== 'undefined') return Component; } catch(e){}\\n" +
-          "  return null;\\n" +
-          "})()";
-
-        var ComponentToRender = eval(executable);
-
-        if (ComponentToRender && typeof ComponentToRender === 'function') {
-          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ComponentToRender));
-        } else {
-          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent kompilerad! Växla till "Kod"-läget för att se källkoden.</div>';
-        }
-      } catch (err) {
-        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
-      }
-    };
-  </script>
-</body>
-</html>`;
-}
 
 export default function App() {
   const [apiKey, setApiKey] = useState('');
@@ -195,9 +15,6 @@ export default function App() {
     'gemini-flash', 'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
-  const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
-  const [masterView, setMasterView] = useState<'preview' | 'code'>('preview');
-
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [swarmStep, setSwarmStep] = useState<'idle' | 'analyzing' | 'polishing' | 'synthesizing' | 'done'>('idle');
   const [swarmProgressText, setSwarmProgressText] = useState('');
@@ -214,13 +31,10 @@ export default function App() {
     if (saved) setApiKey(saved);
 
     const initialResults: Record<string, ModelResult> = {};
-    const initialViews: Record<string, 'preview' | 'code'> = {};
     ALL_MODELS.forEach(m => {
       initialResults[m.id] = { modelId: m.id, code: '', status: 'idle' };
-      initialViews[m.id] = 'preview';
     });
     setResults(initialResults);
-    setCardViews(initialViews);
   }, []);
 
   const saveKey = (val: string) => {
@@ -246,18 +60,7 @@ export default function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const downloadFile = (fileName: string, code: string) => {
-    const blob = new Blob([code], { type: 'text/typescript' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${fileName.replace(/\s+/g, '_')}.tsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('💾 Fil nedladdad!');
-  };
-
-  // Phase 1: Parallel Generation
+  // Fas 1: Parallell Körning
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -275,9 +78,9 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the component 'App' or 'Scoreboard'.
-Output ONLY valid React executable code without markdown explanations.`;
+    const systemPrompt = `You are an elite React engineer. Write a complete, self-contained functional component using Tailwind CSS based on the user prompt. 
+Export the component as 'export default function App()'.
+Output ONLY valid React TypeScript code directly without markdown description.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -296,7 +99,7 @@ Output ONLY valid React executable code without markdown explanations.`;
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 5000,
+            max_tokens: 4500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -348,13 +151,13 @@ Output ONLY valid React executable code without markdown explanations.`;
     await Promise.allSettled(promises);
   };
 
-  // Phase 2 & 3: Swarm Synthesis
+  // Fas 2 & 3: Swarm Synthesis
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
     setSwarmStep('analyzing');
     setSwarmProgressText('🧠 Steg 1/2: Qwen Coder optimerar TypeScript-arkitektur och state-logik...');
 
     try {
-      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'function App() { ... }'.`;
+      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'export default function App()'.`;
       
       const logicRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -365,7 +168,7 @@ Output ONLY valid React executable code without markdown explanations.`;
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 5000,
+          max_tokens: 4500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -375,7 +178,7 @@ Output ONLY valid React executable code without markdown explanations.`;
       setSwarmStep('polishing');
       setSwarmProgressText('✨ Steg 2/2: Gemini Flash förädlar Tailwind UI, micro-animationer & sammanställer slutkoden...');
 
-      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY the clean code with 'function App() { ... }'.`;
+      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY clean code with 'export default function App()'.`;
 
       const uiRes = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
         method: 'POST',
@@ -386,7 +189,7 @@ Output ONLY valid React executable code without markdown explanations.`;
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 5000,
+          max_tokens: 4500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
@@ -399,7 +202,6 @@ Output ONLY valid React executable code without markdown explanations.`;
 
       setSwarmStep('done');
       setFinalMasterCode(masterCode);
-      setMasterView('preview');
       showToast('🏆 Master Synthesizer har sammanställt den ultimata komponenten!');
 
     } catch (err: any) {
@@ -424,7 +226,7 @@ Output ONLY valid React executable code without markdown explanations.`;
                 <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Live Sandbox & Kollektiv AI-syntes</p>
+            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ ESM Native Sandbox & Kollektiv AI-syntes</p>
           </div>
         </div>
 
@@ -444,10 +246,10 @@ Output ONLY valid React executable code without markdown explanations.`;
         </div>
       </header>
 
-      {/* Main Studio Canvas */}
+      {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 space-y-6">
         
-        {/* API Key Drawer */}
+        {/* API Key Modal */}
         {showKeyInput && (
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center gap-3 shadow-2xl">
             <Key className="w-5 h-5 text-indigo-400 flex-shrink-0" />
@@ -476,7 +278,7 @@ Output ONLY valid React executable code without markdown explanations.`;
             </div>
           </div>
 
-          {/* Model Chips */}
+          {/* Model Selection Chips */}
           <div className="flex flex-wrap gap-2.5">
             {ALL_MODELS.map(m => {
               const active = selectedModelIds.includes(m.id);
@@ -498,7 +300,7 @@ Output ONLY valid React executable code without markdown explanations.`;
             })}
           </div>
 
-          {/* Prompt Area */}
+          {/* Prompt Input */}
           <div className="space-y-3">
             <textarea
               rows={3}
@@ -559,82 +361,16 @@ Output ONLY valid React executable code without markdown explanations.`;
           </div>
         )}
 
-        {/* MASTERPIECE */}
+        {/* MASTERPIECE COMPONENT */}
         {finalMasterCode && (
-          <div className="bg-gradient-to-b from-indigo-950/80 to-slate-900 border-2 border-emerald-500/60 rounded-3xl overflow-hidden shadow-2xl space-y-0">
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/40">
-                  <Trophy className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <span>Slutgiltigt Mästerverk (AI Swarm Syntes)</span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono font-bold">
-                      Produktionsklar
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Logik + UI + TypeScript sammanslaget till ett mästerverk</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex bg-slate-900 border border-slate-700 rounded-xl p-1">
-                  <button
-                    onClick={() => setMasterView('preview')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                      masterView === 'preview' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Live Preview</span>
-                  </button>
-                  <button
-                    onClick={() => setMasterView('code')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                      masterView === 'code' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>Kod</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => downloadFile('MasterSwarmComponent', finalMasterCode)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Ladda ner</span>
-                </button>
-                <button
-                  onClick={() => copyText('master', finalMasterCode)}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
-                >
-                  {copiedId === 'master' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>Kopiera</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="min-h-[420px] max-h-[550px] bg-slate-950 flex flex-col">
-              {masterView === 'preview' ? (
-                <iframe
-                  title="Master Live Preview"
-                  srcDoc={createSandboxHtml(finalMasterCode)}
-                  className="w-full flex-1 min-h-[450px] border-none rounded-b-3xl bg-slate-900"
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              ) : (
-                <div className="p-5 font-mono text-xs text-slate-200 max-h-[550px] overflow-y-auto leading-relaxed select-all">
-                  <pre className="whitespace-pre-wrap">{finalMasterCode}</pre>
-                </div>
-              )}
-            </div>
-          </div>
+          <SwarmResult
+            finalMasterCode={finalMasterCode}
+            onCopy={copyText}
+            copiedId={copiedId}
+          />
         )}
 
-        {/* Phase 1 Comparison Grid */}
+        {/* Phase 1 Comparison Grid with Sub-Components */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Swords className="w-4 h-4 text-indigo-400" />
@@ -645,120 +381,17 @@ Output ONLY valid React executable code without markdown explanations.`;
             {selectedModelIds.map(modelId => {
               const modelCfg = ALL_MODELS.find(m => m.id === modelId)!;
               const res = results[modelId] || { status: 'idle', code: '' };
-              const currentView = cardViews[modelId] || 'preview';
 
               return (
-                <div key={modelId} className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden flex flex-col shadow-2xl">
-                  
-                  {/* Header */}
-                  <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-white">{modelCfg.name}</span>
-                        <span className={`text-[9px] uppercase font-mono px-1.5 py-0.5 rounded border ${modelCfg.color}`}>
-                          {modelCfg.role}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-500">{modelCfg.provider}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {res.status === 'done' && (
-                        <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5">
-                          <button
-                            onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'preview' }))}
-                            className={`p-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                              currentView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Preview
-                          </button>
-                          <button
-                            onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'code' }))}
-                            className={`p-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                              currentView === 'code' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <Code2 className="w-3.5 h-3.5" /> Kod
-                          </button>
-                        </div>
-                      )}
-
-                      {res.status === 'generating' && (
-                        <span className="text-indigo-400 font-mono text-[11px] animate-pulse flex items-center gap-1">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Skapar...
-                        </span>
-                      )}
-                      {res.status === 'done' && (
-                        <span className="text-emerald-400 font-mono text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
-                          ⚡ {res.latencyMs}ms
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Main Display */}
-                  <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 flex flex-col">
-                    {res.status === 'idle' && (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 py-20">
-                        <Code2 className="w-10 h-10 opacity-30" />
-                        <span>Redo för koncept-race</span>
-                      </div>
-                    )}
-
-                    {res.status === 'generating' && (
-                      <div className="h-full flex flex-col items-center justify-center text-indigo-400 space-y-3 py-20">
-                        <RefreshCw className="w-8 h-8 animate-spin" />
-                        <span className="text-xs font-sans">Genererar koncept...</span>
-                      </div>
-                    )}
-
-                    {res.status === 'error' && (
-                      <div className="p-4 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-2xl m-4 flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span>{res.errorMsg || 'Genereringen misslyckades'}</span>
-                      </div>
-                    )}
-
-                    {res.status === 'done' && (
-                      currentView === 'preview' ? (
-                        <iframe
-                          title={`${modelCfg.name} Preview`}
-                          srcDoc={createSandboxHtml(res.code)}
-                          className="w-full flex-1 min-h-[380px] border-none bg-slate-950"
-                          sandbox="allow-scripts allow-same-origin"
-                        />
-                      ) : (
-                        <div className="p-4 font-mono text-[11px] overflow-y-auto text-slate-300 leading-relaxed select-all">
-                          <pre className="whitespace-pre-wrap">{res.code}</pre>
-                        </div>
-                      )
-                    )}
-                  </div>
-
-                  {/* Footer */}
-                  {res.status === 'done' && (
-                    <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => copyText(modelId, res.code)}
-                        className="text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1 transition px-2 py-1"
-                      >
-                        {copiedId === modelId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>Kopiera</span>
-                      </button>
-
-                      <button
-                        onClick={() => startSwarmCollaboration(modelId, res.code)}
-                        disabled={swarmStep !== 'idle' && swarmStep !== 'done'}
-                        className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-50"
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        <span>🤝 Bygg med AI Swarm</span>
-                      </button>
-                    </div>
-                  )}
-
-                </div>
+                <ModelCard
+                  key={modelId}
+                  modelCfg={modelCfg}
+                  result={res}
+                  onSwarm={startSwarmCollaboration}
+                  onCopy={copyText}
+                  copiedId={copiedId}
+                  swarmDisabled={swarmStep !== 'idle' && swarmStep !== 'done'}
+                />
               );
             })}
           </div>
@@ -766,7 +399,7 @@ Output ONLY valid React executable code without markdown explanations.`;
 
       </main>
 
-      {/* Toast */}
+      {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-bold text-xs shadow-2xl flex items-center gap-2 z-50 animate-bounce">
           <Check className="w-4 h-4" />
