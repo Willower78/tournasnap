@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Zap, Trophy, Code2, Key, RefreshCw, Cpu, Check, 
   Copy, Download, Rocket, Bookmark, Swords, Users, 
-  Flame, Eye, AlertCircle
+  Flame, Eye, AlertCircle, Wrench, ShieldCheck
 } from 'lucide-react';
 
 interface ModelTarget {
@@ -19,9 +19,10 @@ interface ModelTarget {
 interface ModelResult {
   modelId: string;
   code: string;
-  status: 'idle' | 'generating' | 'done' | 'error';
+  status: 'idle' | 'generating' | 'validating' | 'repairing' | 'done' | 'error';
   latencyMs?: number;
   errorMsg?: string;
+  repairAttempts?: number;
 }
 
 const ALL_MODELS: ModelTarget[] = [
@@ -84,40 +85,36 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Extremt aggressiv rensare som nollställer alla imports/exports
-function sanitizeCode(raw: string): string {
-  let text = raw
-    .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
-    .replace(/\n?```$/gm, '');
+// Syntax Validator via Babel (Kollar om koden har syntaxfel innan den körs)
+function validateCodeSyntax(code: string): { isValid: boolean; error?: string } {
+  try {
+    // Kika efter vanliga avhuggna strängar eller taggar
+    const clean = code
+      .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
+      .replace(/\n?```$/gm, '');
 
-  const lines = text.split('\n');
-  const cleanLines = [];
-  let skipping = false;
-
-  for (let line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('import ') || trimmed.startsWith('import{') || trimmed.includes(' from \'') || trimmed.includes(' from "')) {
-      if (!trimmed.includes(';') && !trimmed.includes('\'') && !trimmed.includes('"')) {
-        skipping = true;
-      }
-      continue;
-    }
-    if (skipping) {
-      if (trimmed.includes(';') || trimmed.includes('\'') || trimmed.includes('"')) {
-        skipping = false;
-      }
-      continue;
-    }
-    if (trimmed.startsWith('export default ')) line = line.replace('export default ', '');
-    else if (trimmed.startsWith('export ')) line = line.replace('export ', '');
-    cleanLines.push(line);
+    // Testkompilera via Babel parser
+    (window as any).Babel.transform(clean, {
+      presets: ['react', 'typescript'],
+      filename: 'validate.tsx'
+    });
+    return { isValid: true };
+  } catch (err: any) {
+    return { isValid: false, error: err.message };
   }
-  return cleanLines.join('\n');
 }
 
 function generateSandbox(rawCode: string): string {
-  const sanitized = sanitizeCode(rawCode);
-  const safeJson = JSON.stringify(sanitized);
+  let code = rawCode
+    .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
+    .replace(/\n?```$/gm, '');
+
+  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
+  code = code.replace(/export\s+default\s+/g, '');
+  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+
+  const safeJson = JSON.stringify(code);
 
   return `<!DOCTYPE html>
 <html>
@@ -188,7 +185,6 @@ export default function App() {
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [swarmStep, setSwarmStep] = useState<'idle' | 'analyzing' | 'polishing' | 'synthesizing' | 'done'>('idle');
-  const [swarmProgressText, setSwarmProgressText] = useState('');
   const [finalMasterCode, setFinalMasterCode] = useState('');
   const [toast, setToast] = useState<string | null>(null);
 
@@ -245,12 +241,51 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  const callModelWithFailover = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string) => {
+  // AI Repair Agent (3-strikes policy)
+  const repairCodeWithAI = async (modelSlug: string, brokenCode: string, errorMessage: string, attempt: number): Promise<string> => {
+    const repairPrompt = `You are an expert React Code Repair Agent. 
+The following TSX code has a syntax error. Fix ONLY the syntax error and ensure all strings, brackets, and JSX tags are closed properly. Return ONLY valid corrected React TypeScript code.
+
+ERROR:
+${errorMessage}
+
+BROKEN CODE:
+\`\`\`tsx
+${brokenCode}
+\`\`\`
+`;
+
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'VibeCoder Swarm Studio'
+      },
+      body: JSON.stringify({
+        model: modelSlug,
+        max_tokens: 2500,
+        messages: [{ role: 'user', content: repairPrompt }]
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.choices?.[0]?.message?.content) {
+      let fixed = data.choices[0].message.content.trim();
+      if (fixed.startsWith('```')) fixed = fixed.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+      return fixed;
+    }
+    throw new Error('Repair failed');
+  };
+
+  const callModelWithPipeline = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string, onStatusChange: (status: ModelResult['status']) => void) => {
     const modelsToTry = [modelCfg.modelString, modelCfg.fallbackModel].filter(Boolean) as string[];
 
     for (const modelSlug of modelsToTry) {
       try {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        onStatusChange('generating');
+        const res = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -269,18 +304,37 @@ export default function App() {
         });
 
         const data = await res.json();
-        if (res.ok && data.choices && data.choices[0]?.message?.content) {
-          let cleanCode = data.choices[0].message.content.trim();
-          if (cleanCode.startsWith('```')) {
-            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+        if (!res.ok || !data.choices?.[0]?.message?.content) continue;
+
+        let code = data.choices[0].message.content.trim();
+        if (code.startsWith('```')) code = code.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
+
+        // --- VALIDATION & REPAIR PIPELINE ---
+        onStatusChange('validating');
+        let validation = validateCodeSyntax(code);
+        let attempts = 0;
+
+        while (!validation.isValid && attempts < 3) {
+          onStatusChange('repairing');
+          try {
+            code = await repairCodeWithAI(modelSlug, code, validation.error || 'Syntax error', attempts + 1);
+            validation = validateCodeSyntax(code);
+          } catch (e) {
+            break;
           }
-          return cleanCode;
+          attempts++;
         }
+
+        if (!validation.isValid) {
+          throw new Error(`Build blocked after 3 automatic repair attempts: ${validation.error}`);
+        }
+
+        return code;
       } catch (e) {
-        // Gå vidare till nästa
+        // Testa nästa modell
       }
     }
-    throw new Error('Alla fria agenter är upptagna.');
+    throw new Error('Alla fria agenter misslyckades med att generera giltig kod.');
   };
 
   const executeParallelGeneration = async () => {
@@ -303,7 +357,7 @@ export default function App() {
     const systemPrompt = `You are an elite React engineer.
 Write a single, complete functional component named 'App' using Tailwind CSS based on the user request.
 Export it with 'export default function App()'.
-Output ONLY executable React TypeScript JSX without markdown backticks, without import statements. Ensure the code is fully closed and complete.`;
+Output ONLY executable React TypeScript JSX without markdown backticks, without import statements. Ensure all strings and brackets are fully closed.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -312,7 +366,12 @@ Output ONLY executable React TypeScript JSX without markdown backticks, without 
       const startTime = performance.now();
 
       try {
-        const cleanCode = await callModelWithFailover(modelCfg, systemPrompt, prompt);
+        const cleanCode = await callModelWithPipeline(modelCfg, systemPrompt, prompt, (status) => {
+          setResults(prev => ({
+            ...prev,
+            [modelId]: { ...prev[modelId], status }
+          }));
+        });
         const endTime = performance.now();
         const latency = Math.round(endTime - startTime);
 
@@ -333,19 +392,13 @@ Output ONLY executable React TypeScript JSX without markdown backticks, without 
 
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
     setSwarmStep('analyzing');
-    setSwarmProgressText('🧠 AI-teamet optimerar arkitektur och logik...');
 
     try {
       const gptCfg = ALL_MODELS.find(m => m.id === 'gpt-oss')!;
-      const upgradedLogicCode = await callModelWithFailover(gptCfg, 'You are an expert React architect. No imports.', 'Enhance this component: \n' + baseCode);
-
-      setSwarmStep('polishing');
-      setSwarmProgressText('✨ Slutgiltig UI-förädling...');
-
-      const masterCode = await callModelWithFailover(ALL_MODELS[0], 'You are an elite UI designer. No imports.', 'Polish this React component: \n' + upgradedLogicCode);
-
+      let code = await callModelWithPipeline(gptCfg, 'You are an expert React architect. No imports.', 'Enhance this component: \n' + baseCode, () => {});
+      
       setSwarmStep('done');
-      setFinalMasterCode(masterCode);
+      setFinalMasterCode(code);
       setMasterView('preview');
       showToast('🏆 Master-komponenten har skapats!');
     } catch (err: any) {
@@ -365,7 +418,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks, without 
             <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
               <span>VibeCoder Swarm Studio</span>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 rounded-full font-bold flex items-center gap-1">
-                <Users className="w-3 h-3" /> Gratis-AI Swarm
+                <ShieldCheck className="w-3 h-3 text-emerald-400" /> Pipeline Protected
               </span>
             </h1>
           </div>
@@ -444,7 +497,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks, without 
               className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-40 text-white font-black px-8 py-4 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-2.5 transition shadow-2xl shadow-indigo-600/30 active:scale-95"
             >
               <Zap className="w-4 h-4 fill-white" />
-              <span>Generera Grundkoncept ({selectedModelIds.length} Fria Modeller)</span>
+              <span>Generera Grundkoncept med Pipeline ({selectedModelIds.length} Modeller)</span>
             </button>
           </div>
         </div>
@@ -499,8 +552,10 @@ Output ONLY executable React TypeScript JSX without markdown backticks, without 
 
                   <div className="flex-1 min-h-[380px] bg-slate-950 flex flex-col">
                     {res.status === 'idle' && <div className="h-full flex items-center justify-center text-slate-600 text-xs py-20">Redo för koncept-race</div>}
-                    {res.status === 'generating' && <div className="h-full flex items-center justify-center text-indigo-400 text-xs py-20 animate-pulse">Genererar med fri AI...</div>}
-                    {res.status === 'error' && <div className="p-4 text-red-400 text-xs">{res.errorMsg}</div>}
+                    {res.status === 'generating' && <div className="h-full flex flex-col items-center justify-center text-indigo-400 text-xs py-20 space-y-2 animate-pulse"><RefreshCw className="w-5 h-5 animate-spin" /><span>Genererar kod...</span></div>}
+                    {res.status === 'validating' && <div className="h-full flex flex-col items-center justify-center text-amber-400 text-xs py-20 space-y-2 animate-pulse"><Zap className="w-5 h-5" /><span>⚙ Validerar syntax via AST...</span></div>}
+                    {res.status === 'repairing' && <div className="h-full flex flex-col items-center justify-center text-cyan-400 text-xs py-20 space-y-2 animate-pulse"><Wrench className="w-5 h-5 animate-spin" /><span>🔧 AI Repair Agent lagar kod...</span></div>}
+                    {res.status === 'error' && <div className="p-4 text-red-400 text-xs flex items-start gap-2"><AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" /><span>{res.errorMsg}</span></div>}
                     {res.status === 'done' && (
                       currentView === 'preview' ? (
                         <iframe title="Preview" srcDoc={generateSandbox(res.code)} className="w-full flex-1 min-h-[380px] border-none bg-slate-950" sandbox="allow-scripts allow-same-origin" />
