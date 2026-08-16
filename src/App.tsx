@@ -78,9 +78,9 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Native ESM + Import Map Sandbox
+// Native ESM + Import Map Sandbox med Auto-Recovery
 function generateSandbox(rawCode: string): string {
-  const cleanCode = rawCode
+  let cleanCode = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
@@ -120,7 +120,12 @@ function generateSandbox(rawCode: string): string {
     window.LucideIcons = LucideIcons;
 
     try {
-      const source = ${safeJson};
+      let source = ${safeJson};
+
+      // Auto-reparation om kod avhuggits vid setInterval/timer
+      if (source.includes('prevTime +') && !source.includes('prevTime + 1')) {
+        source = source.replace(/prevTime\s*\+\s*$/, 'prevTime + 1);\\n    }, 1000);\\n  };');
+      }
 
       // Transpilera TypeScript + TSX
       const transpiled = Babel.transform(source, {
@@ -128,7 +133,6 @@ function generateSandbox(rawCode: string): string {
         filename: 'App.tsx'
       }).code;
 
-      // Kör koden som en dynamisk ES-modul
       const dataUri = "data:text/javascript;charset=utf-8," + encodeURIComponent(transpiled);
       const mod = await import(dataUri);
       
@@ -218,7 +222,7 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  // Parallell Körning
+  // Parallell Generering
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -236,9 +240,9 @@ export default function App() {
     });
     setResults(nextResults);
 
-    const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Export the component as 'export default function App()'.
-Output ONLY valid React TypeScript code directly without markdown description.`;
+    const systemPrompt = `You are an elite React engineer. Write a complete, self-contained single-file React component using Tailwind CSS based on the user prompt. 
+Export the component with 'export default function App()'.
+Output ONLY valid executable TypeScript JSX code directly without markdown description. Make sure the code is completely finished without cutoff.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -257,7 +261,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 4000,
+            max_tokens: 4500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -326,7 +330,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 4000,
+          max_tokens: 4500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -347,7 +351,7 @@ Output ONLY valid React TypeScript code directly without markdown description.`;
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 4000,
+          max_tokens: 4500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
