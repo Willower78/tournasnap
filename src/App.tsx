@@ -13,7 +13,6 @@ interface ModelTarget {
   color: string;
   badge: string;
   role: string;
-  fallbackModel?: string;
 }
 
 interface ModelResult {
@@ -30,7 +29,6 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Gemini 2.5 Flash',
     provider: 'Google',
     modelString: 'google/gemini-2.5-flash',
-    fallbackModel: 'qwen/qwen-2.5-coder-32b-instruct',
     color: 'border-blue-500/40 text-blue-400 bg-blue-500/10',
     badge: 'Standard',
     role: 'Master Synthesizer'
@@ -40,7 +38,6 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Qwen 2.5 Coder 32B',
     provider: 'Alibaba',
     modelString: 'qwen/qwen-2.5-coder-32b-instruct',
-    fallbackModel: 'deepseek/deepseek-chat',
     color: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
     badge: 'Top Full-Stack',
     role: 'TypeScript & Arkitektur'
@@ -50,7 +47,6 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'DeepSeek V3',
     provider: 'DeepSeek',
     modelString: 'deepseek/deepseek-chat',
-    fallbackModel: 'meta-llama/llama-3.3-70b-instruct',
     color: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
     badge: 'High Speed',
     role: 'Logik & Edge Cases'
@@ -60,7 +56,6 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Llama 3.3 70B',
     provider: 'Meta',
     modelString: 'meta-llama/llama-3.3-70b-instruct',
-    fallbackModel: 'mistralai/mistral-small-24b-instruct-2501',
     color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10',
     badge: 'Ultra Fast',
     role: 'UI & Interaktioner'
@@ -70,7 +65,6 @@ const ALL_MODELS: ModelTarget[] = [
     name: 'Mistral Small 24B',
     provider: 'Mistral AI',
     modelString: 'mistralai/mistral-small-24b-instruct-2501',
-    fallbackModel: 'qwen/qwen-2.5-coder-32b-instruct',
     color: 'border-amber-500/40 text-amber-400 bg-amber-500/10',
     badge: 'Strict Logic',
     role: 'Validering & Stabilitet'
@@ -84,19 +78,36 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Supereffektiv sandlåda utan modulkrångel
-function generateSandbox(rawCode: string): string {
-  let code = rawCode
+// Supereffektiv rensare som tar bort alla imports/exports rad för rad
+function sanitizeCode(raw: string): string {
+  let text = raw
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // Rensa bort alla import- och export-rader helt
-  code = code.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/import\s+['"][^'"]+['"];?/gm, '');
-  code = code.replace(/export\s+default\s+/g, '');
-  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
+  const lines = text.split('\n');
+  const cleanLines = [];
+  let skipping = false;
 
-  const safeJson = JSON.stringify(code);
+  for (let line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('import ') || trimmed.startsWith('import{')) {
+      if (!trimmed.includes('from') && !trimmed.endsWith(';')) skipping = true;
+      continue;
+    }
+    if (skipping) {
+      if (trimmed.includes('from') || trimmed.endsWith(';')) skipping = false;
+      continue;
+    }
+    if (trimmed.startsWith('export default ')) line = line.replace('export default ', '');
+    else if (trimmed.startsWith('export ')) line = line.replace('export ', '');
+    cleanLines.push(line);
+  }
+  return cleanLines.join('\n');
+}
+
+function generateSandbox(rawCode: string): string {
+  const sanitized = sanitizeCode(rawCode);
+  const safeJson = JSON.stringify(sanitized);
 
   return `<!DOCTYPE html>
 <html>
@@ -113,7 +124,6 @@ function generateSandbox(rawCode: string): string {
 </head>
 <body>
   <div id="root"></div>
-
   <script>
     window.addEventListener('DOMContentLoaded', () => {
       try {
@@ -160,7 +170,7 @@ export default function App() {
   const [prompt, setPrompt] = useState(CODE_PRESETS[0]);
   
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([
-    'gemini-flash', 'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
+    'qwen-coder', 'deepseek-chat', 'llama-3-3', 'mistral-small'
   ]);
   const [results, setResults] = useState<Record<string, ModelResult>>({});
   const [cardViews, setCardViews] = useState<Record<string, 'preview' | 'code'>>({});
@@ -225,44 +235,6 @@ export default function App() {
     showToast('💾 Fil nedladdad!');
   };
 
-  const callModelWithFailover = async (modelCfg: ModelTarget, systemPrompt: string, userPrompt: string) => {
-    const modelsToTry = [modelCfg.modelString, modelCfg.fallbackModel].filter(Boolean) as string[];
-
-    for (const modelSlug of modelsToTry) {
-      try {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey.trim()}`,
-            'HTTP-Referer': window.location.origin,
-            'X-Title': 'VibeCoder Swarm Studio'
-          },
-          body: JSON.stringify({
-            model: modelSlug,
-            max_tokens: 2500,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ]
-          })
-        });
-
-        const data = await res.json();
-        if (res.ok && data.choices && data.choices[0]?.message?.content) {
-          let cleanCode = data.choices[0].message.content.trim();
-          if (cleanCode.startsWith('```')) {
-            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
-          }
-          return cleanCode;
-        }
-      } catch (e) {
-        // Nästa fallback
-      }
-    }
-    throw new Error('Alla tillgängliga AI-agenter misslyckades.');
-  };
-
   const executeParallelGeneration = async () => {
     if (!prompt.trim()) return;
     if (!apiKey.trim()) {
@@ -292,28 +264,46 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
       const startTime = performance.now();
 
       try {
-        const cleanCode = await callModelWithFailover(modelCfg, systemPrompt, prompt);
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey.trim()}`,
+            'HTTP-Referer': window.location.origin,
+            'X-Title': 'VibeCoder Swarm Studio'
+          },
+          body: JSON.stringify({
+            model: modelCfg.modelString,
+            max_tokens: 3000,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ]
+          })
+        });
+
+        const data = await res.json();
         const endTime = performance.now();
         const latency = Math.round(endTime - startTime);
 
-        setResults(prev => ({
-          ...prev,
-          [modelId]: {
-            modelId,
-            code: cleanCode,
-            status: 'done',
-            latencyMs: latency
+        if (!res.ok) throw new Error(data.error?.message || ('HTTP ' + res.status));
+
+        if (data.choices && data.choices[0]?.message?.content) {
+          let cleanCode = data.choices[0].message.content.trim();
+          if (cleanCode.startsWith('```')) {
+            cleanCode = cleanCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
           }
-        }));
+          setResults(prev => ({
+            ...prev,
+            [modelId]: { modelId, code: cleanCode, status: 'done', latencyMs: latency }
+          }));
+        } else {
+          throw new Error('Ogiltigt svar');
+        }
       } catch (err: any) {
         setResults(prev => ({
           ...prev,
-          [modelId]: {
-            modelId,
-            code: '',
-            status: 'error',
-            errorMsg: err.message
-          }
+          [modelId]: { modelId, code: '', status: 'error', errorMsg: err.message }
         }));
       }
     });
@@ -323,27 +313,34 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
 
   const startSwarmCollaboration = async (baseModelId: string, baseCode: string) => {
     setSwarmStep('analyzing');
-    setSwarmProgressText('🧠 Steg 1/2: Tillgängliga AI-agenter optimerar arkitektur och logik...');
+    setSwarmProgressText('🧠 AI-teamet optimerar arkitektur och logik...');
 
     try {
       const qwenCfg = ALL_MODELS.find(m => m.id === 'qwen-coder')!;
-      const logicPrompt = `Here is a React component base:\n\`\`\`tsx\n${baseCode}\n\`\`\`\nEnhance its state management, interactive features and types while keeping the overall design. Return the upgraded code with 'export default function App()'.`;
-      
-      const upgradedLogicCode = await callModelWithFailover(qwenCfg, 'You are an expert React architect.', logicPrompt);
-
-      setSwarmStep('polishing');
-      setSwarmProgressText('✨ Steg 2/2: Backup-agenten förädlar Tailwind UI och sammanställer slutkoden...');
-
-      const geminiCfg = ALL_MODELS.find(m => m.id === 'gemini-flash')!;
-      const uiPrompt = `Here is the logic-enhanced code:\n\`\`\`tsx\n${upgradedLogicCode}\n\`\`\`\nPolishing phase: Enhance the Tailwind CSS styling, sleek dark-mode, micro-interactions, and perfect TypeScript interfaces. Return ONLY clean code with 'export default function App()'.`;
-
-      const masterCode = await callModelWithFailover(geminiCfg, 'You are an elite UI designer.', uiPrompt);
+      const res = await fetch('[https://openrouter.ai/api/v1/chat/completions](https://openrouter.ai/api/v1/chat/completions)', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey.trim()}`,
+          'HTTP-Referer': window.location.origin
+        },
+        body: JSON.stringify({
+          model: qwenCfg.modelString,
+          max_tokens: 3000,
+          messages: [
+            { role: 'system', content: 'You are an expert React architect.' },
+            { role: 'user', content: 'Enhance this React component with robust state and styling: \n' + baseCode }
+          ]
+        })
+      });
+      const data = await res.json();
+      let masterCode = data.choices[0].message.content.trim();
+      if (masterCode.startsWith('```')) masterCode = masterCode.replace(/^```[a-z]*\n/, '').replace(/\n```$/, '');
 
       setSwarmStep('done');
       setFinalMasterCode(masterCode);
       setMasterView('preview');
-      showToast('🏆 Swarm-teamet har sammanställt den ultimata komponenten!');
-
+      showToast('🏆 Master-komponenten har skapats!');
     } catch (err: any) {
       setSwarmStep('idle');
       showToast('⚠️ Swarm-fel: ' + err.message);
@@ -361,10 +358,9 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
             <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
               <span>VibeCoder Swarm Studio</span>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 rounded-full font-bold flex items-center gap-1">
-                <Users className="w-3 h-3" /> Auto-Failover Swarm
+                <Users className="w-3 h-3" /> Multi-Agent Swarm
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Parallell tävling $\rightarrow$ Automatisk Agent-Failover & Kollektiv AI-syntes</p>
           </div>
         </div>
 
@@ -372,9 +368,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
           <button
             onClick={() => setShowKeyInput(!showKeyInput)}
             className={`text-xs px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition border ${
-              apiKey 
-                ? 'bg-slate-900 text-emerald-400 border-emerald-500/30' 
-                : 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse'
+              apiKey ? 'bg-slate-900 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30 text-amber-400 animate-pulse'
             }`}
           >
             <Key className="w-3.5 h-3.5" />
@@ -402,10 +396,7 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-300">Fas 1: Välj koncept-arkitekter ({selectedModelIds.length} aktiva):</span>
-              <button
-                onClick={selectAll}
-                className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-lg hover:bg-cyan-500/20 transition"
-              >
+              <button onClick={selectAll} className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-lg hover:bg-cyan-500/20 transition">
                 ⚡ Välj alla modeller
               </button>
             </div>
@@ -424,9 +415,6 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
                 >
                   <Cpu className="w-3.5 h-3.5" />
                   <span className="font-semibold">{m.name}</span>
-                  <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-black/40">
-                    {m.role}
-                  </span>
                 </button>
               );
             })}
@@ -440,21 +428,6 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
               placeholder="Beskriv vad du vill att AI-teamet ska bygga..."
               className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs sm:text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none font-sans leading-relaxed"
             />
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                <Bookmark className="w-3 h-3" /> Snabbval:
-              </span>
-              {CODE_PRESETS.map((p, i) => (
-                <button
-                  key={i}
-                  onClick={() => setPrompt(p)}
-                  className="text-[10px] bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white px-2.5 py-1 rounded-xl transition truncate max-w-xs"
-                >
-                  {p.slice(0, 40)}...
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className="flex justify-end pt-2">
@@ -469,28 +442,6 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
           </div>
         </div>
 
-        {swarmStep !== 'idle' && (
-          <div className="bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-cyan-900/40 border-2 border-indigo-500/50 rounded-3xl p-6 shadow-2xl space-y-3 animate-pulse">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-indigo-500/20 text-indigo-300 rounded-xl border border-indigo-500/40">
-                  <Flame className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <span>AI Swarm Arbetar Kollektivt</span>
-                    <span className="text-[10px] bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full font-mono">
-                      Fas 3
-                    </span>
-                  </h3>
-                  <p className="text-xs text-indigo-200 font-mono mt-0.5">{swarmProgressText}</p>
-                </div>
-              </div>
-              {swarmStep !== 'done' && <RefreshCw className="w-5 h-5 text-indigo-400 animate-spin" />}
-            </div>
-          </div>
-        )}
-
         {finalMasterCode && (
           <div className="bg-gradient-to-b from-indigo-950/80 to-slate-900 border-2 border-emerald-500/60 rounded-3xl overflow-hidden shadow-2xl space-y-0">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
@@ -499,68 +450,17 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
                   <Trophy className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-2">
-                    <span>Slutgiltigt Mästerverk (AI Swarm Syntes)</span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono font-bold">
-                      Produktionsklar
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">Logik + UI + TypeScript sammanslaget till ett mästerverk</p>
+                  <h3 className="text-sm font-black text-white">Slutgiltigt Mästerverk</h3>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex bg-slate-900 border border-slate-700 rounded-xl p-1">
-                  <button
-                    onClick={() => setMasterView('preview')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                      masterView === 'preview' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Live Preview</span>
-                  </button>
-                  <button
-                    onClick={() => setMasterView('code')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                      masterView === 'code' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>Kod</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => downloadFile('MasterSwarmComponent', finalMasterCode)}
-                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Ladda ner</span>
-                </button>
-                <button
-                  onClick={() => copyText('master', finalMasterCode)}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
-                >
-                  {copiedId === 'master' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>Kopiera</span>
-                </button>
               </div>
             </div>
-
-            <div className="min-h-[420px] max-h-[550px] bg-slate-950 flex flex-col">
-              {masterView === 'preview' ? (
-                <iframe
-                  title="Master Live Preview"
-                  srcDoc={generateSandbox(finalMasterCode)}
-                  className="w-full flex-1 min-h-[450px] border-none rounded-b-3xl bg-slate-900"
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              ) : (
-                <div className="p-5 font-mono text-xs text-slate-200 max-h-[550px] overflow-y-auto leading-relaxed select-all">
-                  <pre className="whitespace-pre-wrap">{finalMasterCode}</pre>
-                </div>
-              )}
+            <div className="min-h-[420px] bg-slate-950 flex flex-col">
+              <iframe
+                title="Master Live Preview"
+                srcDoc={generateSandbox(finalMasterCode)}
+                className="w-full flex-1 min-h-[450px] border-none rounded-b-3xl bg-slate-900"
+                sandbox="allow-scripts allow-same-origin"
+              />
             </div>
           </div>
         )}
@@ -568,119 +468,45 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
         <div className="space-y-3">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Swords className="w-4 h-4 text-indigo-400" />
-            <span>Fas 2: Granska & Välj Vinnande Grunddesign att Bygga Vidare På</span>
+            <span>Fas 2: Granska & Välj Vinnande Grunddesign</span>
           </h2>
 
-          <div className={`grid grid-cols-1 ${selectedModelIds.length === 2 ? 'md:grid-cols-2' : selectedModelIds.length >= 3 ? 'md:grid-cols-3' : ''} gap-5`}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5`}>
             {selectedModelIds.map(modelId => {
-              const modelCfg = ALL_MODELS.find(m => m.id === modelId)!;
+              const modelCfg = ALL_MODELS.find(m => m.id === modelId);
+              if (!modelCfg) return null;
               const res = results[modelId] || { status: 'idle', code: '' };
               const currentView = cardViews[modelId] || 'preview';
 
               return (
                 <div key={modelId} className="bg-slate-900/90 border border-slate-800 rounded-3xl overflow-hidden flex flex-col shadow-2xl">
                   <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-white">{modelCfg.name}</span>
-                        <span className={`text-[9px] uppercase font-mono px-1.5 py-0.5 rounded border ${modelCfg.color}`}>
-                          {modelCfg.role}
-                        </span>
+                    <span className="text-xs font-black text-white">{modelCfg.name}</span>
+                    {res.status === 'done' && (
+                      <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+                        <button onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'preview' }))} className={`p-1 px-2 rounded-lg text-[10px] font-bold ${currentView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Preview</button>
+                        <button onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'code' }))} className={`p-1 px-2 rounded-lg text-[10px] font-bold ${currentView === 'code' ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>Kod</button>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-500">{modelCfg.provider}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {res.status === 'done' && (
-                        <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5">
-                          <button
-                            onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'preview' }))}
-                            className={`p-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                              currentView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Preview
-                          </button>
-                          <button
-                            onClick={() => setCardViews(prev => ({ ...prev, [modelId]: 'code' }))}
-                            className={`p-1 px-2 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                              currentView === 'code' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <Code2 className="w-3.5 h-3.5" /> Kod
-                          </button>
-                        </div>
-                      )}
-
-                      {res.status === 'generating' && (
-                        <span className="text-indigo-400 font-mono text-[11px] animate-pulse flex items-center gap-1">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Skapar...
-                        </span>
-                      )}
-                      {res.status === 'done' && (
-                        <span className="text-emerald-400 font-mono text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
-                          ⚡ {res.latencyMs}ms
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
 
-                  <div className="flex-1 min-h-[380px] max-h-[460px] bg-slate-950 flex flex-col">
-                    {res.status === 'idle' && (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 py-20">
-                        <Code2 className="w-10 h-10 opacity-30" />
-                        <span>Redo för koncept-race</span>
-                      </div>
-                    )}
-
-                    {res.status === 'generating' && (
-                      <div className="h-full flex flex-col items-center justify-center text-indigo-400 space-y-3 py-20">
-                        <RefreshCw className="w-8 h-8 animate-spin" />
-                        <span className="text-xs font-sans">Genererar koncept...</span>
-                      </div>
-                    )}
-
-                    {res.status === 'error' && (
-                      <div className="p-4 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-2xl m-4 flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span>{res.errorMsg || 'Genereringen misslyckades'}</span>
-                      </div>
-                    )}
-
+                  <div className="flex-1 min-h-[380px] bg-slate-950 flex flex-col">
+                    {res.status === 'idle' && <div className="h-full flex items-center justify-center text-slate-600 text-xs py-20">Redo för koncept-race</div>}
+                    {res.status === 'generating' && <div className="h-full flex items-center justify-center text-indigo-400 text-xs py-20 animate-pulse">Genererar...</div>}
+                    {res.status === 'error' && <div className="p-4 text-red-400 text-xs">{res.errorMsg}</div>}
                     {res.status === 'done' && (
                       currentView === 'preview' ? (
-                        <iframe
-                          title={`${modelCfg.name} Preview`}
-                          srcDoc={generateSandbox(res.code)}
-                          className="w-full flex-1 min-h-[380px] border-none bg-slate-950"
-                          sandbox="allow-scripts allow-same-origin"
-                        />
+                        <iframe title="Preview" srcDoc={generateSandbox(res.code)} className="w-full flex-1 min-h-[380px] border-none bg-slate-950" sandbox="allow-scripts allow-same-origin" />
                       ) : (
-                        <div className="p-4 font-mono text-[11px] overflow-y-auto text-slate-300 leading-relaxed select-all">
-                          <pre className="whitespace-pre-wrap">{res.code}</pre>
-                        </div>
+                        <div className="p-4 font-mono text-[11px] overflow-y-auto text-slate-300 select-all"><pre>{res.code}</pre></div>
                       )
                     )}
                   </div>
 
                   {res.status === 'done' && (
-                    <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
-                      <button
-                        onClick={() => copyText(modelId, res.code)}
-                        className="text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1 transition px-2 py-1"
-                      >
-                        {copiedId === modelId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>Kopiera</span>
-                      </button>
-
-                      <button
-                        onClick={() => startSwarmCollaboration(modelId, res.code)}
-                        disabled={swarmStep !== 'idle' && swarmStep !== 'done'}
-                        className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-50"
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        <span>🤝 Bygg med AI Swarm</span>
-                      </button>
+                    <div className="p-3.5 border-t border-slate-800 bg-slate-950/80 flex justify-between">
+                      <button onClick={() => copyText(modelId, res.code)} className="text-slate-400 text-xs flex items-center gap-1"><Copy className="w-3.5 h-3.5" /> Kopiera</button>
+                      <button onClick={() => startSwarmCollaboration(modelId, res.code)} className="bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs">🤝 Bygg med AI Swarm</button>
                     </div>
                   )}
                 </div>
@@ -691,9 +517,8 @@ Output ONLY executable React TypeScript JSX without markdown backticks. Ensure t
       </main>
 
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-bold text-xs shadow-2xl flex items-center gap-2 z-50 animate-bounce">
-          <Check className="w-4 h-4" />
-          <span>{toast}</span>
+        <div className="fixed bottom-6 right-6 bg-emerald-500 text-slate-950 px-4 py-2.5 rounded-2xl font-bold text-xs shadow-2xl flex items-center gap-2 z-50">
+          <Check className="w-4 h-4" /> <span>{toast}</span>
         </div>
       )}
     </div>
