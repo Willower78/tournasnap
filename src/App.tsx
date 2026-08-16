@@ -78,22 +78,25 @@ interface ModelResult {
   errorMsg?: string;
 }
 
-// 100% Robust Sandbox Sanitizer & Compiler
+// 100% Rock-Solid Browser Sandbox Engine (CodePen/v0 Architecture)
 function createSandboxHtml(rawCode: string) {
-  // 1. Tvätta markdown
-  let cleaned = rawCode
+  // 1. Rensa markdown codeblocks
+  let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
     .replace(/\n?```$/gm, '');
 
-  // 2. Rensa alla typer av imports (även multiline)
-  cleaned = cleaned.replace(/import\s+[\s\S]*?from\s+['"][^'"]+['"];?/g, '');
-  cleaned = cleaned.replace(/import\s+['"][^'"]+['"];?/g, '');
+  // 2. Rensa alla import-rader
+  code = code
+    .split('\n')
+    .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('import{'))
+    .join('\n');
 
-  // 3. Rensa exports
-  cleaned = cleaned.replace(/export\s+default\s+/g, '');
-  cleaned = cleaned.replace(/export\s+(?:const|let|var|function|class)\s+/g, '');
+  // 3. Konvertera export default till window.__MainComponent
+  code = code.replace(/export\s+default\s+function\s+([A-Za-z0-9_]+)/g, 'function $1;\nwindow.__MainComponent = $1;\nfunction $1');
+  code = code.replace(/export\s+default\s+/g, 'window.__MainComponent = ');
+  code = code.replace(/export\s+(const|let|var|function|class|type|interface)\s+/g, '$1 ');
 
-  const safeJsonCode = JSON.stringify(cleaned);
+  const jsonCode = JSON.stringify(code);
 
   return `<!DOCTYPE html>
 <html>
@@ -112,53 +115,79 @@ function createSandboxHtml(rawCode: string) {
   <div id="root"></div>
 
   <script>
-    window.addEventListener('DOMContentLoaded', function() {
-      try {
-        var rawCode = ${safeJsonCode};
-        
-        // Exponera React hooks i closure
-        var { useState, useEffect, useRef, useMemo, useCallback } = React;
-        
-        // Mock ikoner
-        var LucideIcons = new Proxy({}, {
-          get: function() {
-            return function(props) {
-              return React.createElement('span', { style: { display: 'inline-block', margin: '0 2px' } }, '⚡');
-            };
-          }
-        });
+    // Globals & Shims
+    window.module = { exports: {} };
+    window.exports = window.module.exports;
+    window.__MainComponent = null;
 
-        // Transformera TypeScript + JSX via Babel
-        var transformed = Babel.transform(rawCode, {
+    // React Hooks
+    var { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    // Universal Mock för ikoner (Lucide, Heroicons, etc.)
+    var IconMock = function(props) {
+      return React.createElement('span', {
+        style: { display: 'inline-block', margin: '0 3px', verticalAlign: 'middle', fontSize: '13px' }
+      }, '⚡');
+    };
+    window.LucideIcons = new Proxy({}, { get: function() { return IconMock; } });
+
+    // Virtuell require-shim
+    window.require = function(mod) {
+      if (mod === 'react') return window.React;
+      if (mod === 'react-dom') return window.ReactDOM;
+      return window.LucideIcons;
+    };
+
+    window.onload = function() {
+      try {
+        var rawSource = ${jsonCode};
+
+        // Transpilera TypeScript + JSX
+        var transpiled = Babel.transform(rawSource, {
           presets: ['react', 'typescript'],
           filename: 'component.tsx'
         }).code;
 
-        // Kör koden i isolerad closure och hitta komponenten
-        var evalScope = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback', 'LucideIcons',
-          transformed + "\\n;\\n" +
-          "var target = null;\\n" +
-          "if (typeof App !== 'undefined') target = App;\\n" +
-          "else if (typeof Scoreboard !== 'undefined') target = Scoreboard;\\n" +
-          "else if (typeof MatchTimer !== 'undefined') target = MatchTimer;\\n" +
-          "else if (typeof MatchSecretariat !== 'undefined') target = MatchSecretariat;\\n" +
-          "else if (typeof TimerAndScoreboard !== 'undefined') target = TimerAndScoreboard;\\n" +
-          "else if (typeof Dashboard !== 'undefined') target = Dashboard;\\n" +
-          "else if (typeof Component !== 'undefined') target = Component;\\n" +
-          "return target;"
-        );
+        // Exekvera källkoden i global kontext
+        var runScript = document.createElement('script');
+        runScript.type = 'text/javascript';
+        runScript.text = transpiled;
+        document.body.appendChild(runScript);
 
-        var FoundComponent = evalScope(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback, LucideIcons);
+        // Hitta den renderbara komponenten
+        var ComponentToRender = window.__MainComponent || window.module.exports.default || window.module.exports;
 
-        if (FoundComponent && typeof FoundComponent === 'function') {
-          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(FoundComponent));
+        if (!ComponentToRender || typeof ComponentToRender !== 'function') {
+          var possible = [
+            'App', 'MatchTimer', 'Scoreboard', 'TimerAndScoreboard',
+            'MatchSecretariat', 'MatchTimerDashboard', 'Dashboard', 'Component'
+          ];
+          for (var i = 0; i < possible.length; i++) {
+            if (typeof window[possible[i]] === 'function') {
+              ComponentToRender = window[possible[i]];
+              break;
+            }
+          }
+        }
+
+        if (!ComponentToRender || typeof ComponentToRender !== 'function') {
+          var keys = Object.keys(window).filter(function(k) {
+            return typeof window[k] === 'function' && /^[A-Z]/.test(k) && !k.startsWith('React') && !k.startsWith('Babel') && !k.startsWith('HTML');
+          });
+          if (keys.length > 0) {
+            ComponentToRender = window[keys[keys.length - 1]];
+          }
+        }
+
+        if (ComponentToRender && typeof ComponentToRender === 'function') {
+          ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ComponentToRender));
         } else {
-          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Kompilerad och klar! Växla till "Kod"-läget för att se källkoden.</div>';
+          document.getElementById('root').innerHTML = '<div style="padding:16px;color:#34d399;font-family:monospace;font-size:12px;">✅ Komponent genererad! Växla till "Kod"-läget för att se källkoden.</div>';
         }
       } catch (err) {
         document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:12px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox: ' + err.message + '</div>';
       }
-    });
+    };
   </script>
 </body>
 </html>`;
@@ -254,8 +283,8 @@ export default function App() {
     setResults(nextResults);
 
     const systemPrompt = `You are an elite React engineer. Write a complete, single-file functional component using Tailwind CSS based on the user prompt. 
-Name the main component 'App' and export it with 'export default function App()'.
-Output ONLY valid executable code without markdown backtick wrappers or explanations.`;
+Name the component 'App' and export it as 'export default function App()'.
+Output ONLY valid React TypeScript code without markdown descriptions.`;
 
     const promises = selectedModelIds.map(async (modelId) => {
       const modelCfg = ALL_MODELS.find(m => m.id === modelId);
@@ -274,7 +303,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
           },
           body: JSON.stringify({
             model: modelCfg.modelString,
-            max_tokens: 3000,
+            max_tokens: 3500,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: prompt }
@@ -343,7 +372,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
         },
         body: JSON.stringify({
           model: 'qwen/qwen-2.5-coder-32b-instruct',
-          max_tokens: 3000,
+          max_tokens: 3500,
           messages: [{ role: 'user', content: logicPrompt }]
         })
       });
@@ -364,7 +393,7 @@ Output ONLY valid executable code without markdown backtick wrappers or explanat
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
-          max_tokens: 3000,
+          max_tokens: 3500,
           messages: [{ role: 'user', content: uiPrompt }]
         })
       });
