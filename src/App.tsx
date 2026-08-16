@@ -84,7 +84,7 @@ const CODE_PRESETS = [
   "Skapa en responsiv musik- och podcastspelare med spellista, vågform och volymkontroll."
 ];
 
-// Garanterad synlig Sandbox-motor med auto-mount inspektör
+// Garanterat synlig synkron Sandbox-motor
 function generateSandbox(rawCode: string): string {
   let code = rawCode
     .replace(/^```[a-zA-Z0-9_-]*\n?/gm, '')
@@ -103,58 +103,53 @@ function generateSandbox(rawCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     body { background-color: #0b0f19; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 14px; }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div style="color:#94a3b8;font-size:12px;font-family:monospace;padding:10px;">Laddar komponent...</div>
+  </div>
 
-  <script type="text/babel" data-presets="react,typescript">
-    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+        const IconMock = (props) => React.createElement('span', { className: 'inline-block mx-1' }, '⚡');
+        const LucideIcons = new Proxy({}, { get: () => IconMock });
+        Object.assign(window, {
+          Play: IconMock, Pause: IconMock, RotateCcw: IconMock, Square: IconMock, Clock: IconMock,
+          Trophy: IconMock, Zap: IconMock, Volume2: IconMock, VolumeX: IconMock, Shield: IconMock,
+          Activity: IconMock, Award: IconMock, Plus: IconMock, Minus: IconMock, Users: IconMock,
+          Flame: IconMock, Check: IconMock, Copy: IconMock, Trash2: IconMock, RefreshCw: IconMock,
+          Calendar: IconMock, Timer: IconMock, Settings: IconMock, Bell: IconMock, LucideIcons
+        });
 
-    const IconMock = (props) => React.createElement('span', { className: 'inline-block mx-1' }, '⚡');
-    const LucideIcons = new Proxy({}, { get: () => IconMock });
-    Object.assign(window, {
-      Play: IconMock, Pause: IconMock, RotateCcw: IconMock, Square: IconMock, Clock: IconMock,
-      Trophy: IconMock, Zap: IconMock, Volume2: IconMock, VolumeX: IconMock, Shield: IconMock,
-      Activity: IconMock, Award: IconMock, Plus: IconMock, Minus: IconMock, Users: IconMock,
-      Flame: IconMock, Check: IconMock, Copy: IconMock, Trash2: IconMock, RefreshCw: IconMock,
-      Calendar: IconMock, Timer: IconMock, Settings: IconMock, Bell: IconMock, LucideIcons
-    });
+        const rawSource = ${safeJson};
+        const transpiled = Babel.transform(rawSource, {
+          presets: ['react', 'typescript'],
+          filename: 'app.tsx'
+        }).code;
 
-    try {
-      const sourceCode = ${safeJson};
-      const wrapperScript = document.createElement('script');
-      wrapperScript.type = 'text/babel';
-      wrapperScript.setAttribute('data-presets', 'react,typescript');
-      wrapperScript.text = sourceCode + \`
-        try {
+        const runCode = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
+          transpiled + \`
           const root = ReactDOM.createRoot(document.getElementById('root'));
-          if (typeof App !== 'undefined') {
-            root.render(<App />);
-          } else if (typeof Scoreboard !== 'undefined') {
-            root.render(<Scoreboard />);
-          } else if (typeof MatchTimer !== 'undefined') {
-            root.render(<MatchTimer />);
-          } else if (typeof Component !== 'undefined') {
-            root.render(<Component />);
-          } else {
-            root.render(
-              <div className="p-6 text-center text-emerald-400 font-mono text-sm">
-                ✅ Komponent kompilerad! Byt till "Kod"-fliken för att se källkoden.
-              </div>
-            );
-          }
-        } catch(renderErr) {
-          document.getElementById('root').innerHTML = '<div style="padding:12px;color:#f87171;font-size:12px;font-family:monospace;">Render Error: ' + renderErr.message + '</div>';
-        }
-      \`;
-      document.body.appendChild(wrapperScript);
-    } catch (err) {
-      document.getElementById('root').innerHTML = '<div style="color:#f87171;padding:10px;font-size:12px;font-family:monospace;">Babel Error: ' + err.message + '</div>';
-    }
+          if (typeof App !== 'undefined') root.render(<App />);
+          else if (typeof Scoreboard !== 'undefined') root.render(<Scoreboard />);
+          else if (typeof MatchTimer !== 'undefined') root.render(<MatchTimer />);
+          else if (typeof Component !== 'undefined') root.render(<Component />);
+          else root.render(<div className="p-4 text-emerald-400 font-mono text-xs">✅ Komponent laddad! Se 'Kod' för källkod.</div>);
+        \`);
+
+        runCode(React, ReactDOM, useState, useEffect, useRef, useMemo, useCallback);
+      } catch (err) {
+        document.getElementById('root').innerHTML = '<div style="padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-family:monospace;font-size:11px;">⚠️ Sandbox Error: ' + err.message + '</div>';
+      }
+    });
   </script>
 </body>
 </html>`;
@@ -263,7 +258,7 @@ export default function App() {
           return cleanCode;
         }
       } catch (e) {
-        // Försök nästa fallback
+        // Fortsätt till nästa modell i listan
       }
     }
     throw new Error('Alla tillgängliga AI-agenter misslyckades eller saknar krediter.');
