@@ -85,7 +85,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080B10] text-slate-100 font-sans flex flex-col selection:bg-indigo-500/30">
+    <div style={{ fontFamily: "'Inter', sans-serif" }} className="min-h-screen bg-[#080B10] text-slate-100 flex flex-col selection:bg-indigo-500/30">
       {/* Navbar */}
       <header className="h-16 border-b border-slate-800/80 bg-slate-950/90 px-6 sm:px-12 flex items-center justify-between backdrop-blur-xl sticky top-0 z-40">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentView('landing')}>
