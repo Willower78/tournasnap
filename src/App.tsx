@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Trophy, Zap, Shield, Check, CreditCard, 
-  ArrowRight, Sparkles, Smartphone, RefreshCw, Plus, Calendar, DollarSign
+  ArrowRight, Sparkles, Smartphone, RefreshCw, Plus, Calendar, Users, Activity
 } from 'lucide-react';
 
 interface Tournament {
@@ -14,14 +14,17 @@ interface Tournament {
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'register' | 'checkout' | 'dashboard' | 'create'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'register' | 'checkout' | 'dashboard' | 'create' | 'manage'>('landing');
   const [userRole, setUserRole] = useState<'organizer' | 'player'>('organizer');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
   // Creation & Checkout state
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([
+    { id: '1', name: 'Summer Cup 2026', type: 'small', price: '5 €', date: '2026-08-18', teamsCount: 4 }
+  ]);
   const [pendingTournament, setPendingTournament] = useState<{ name: string; type: 'small' | 'big' | 'league'; price: string; costNum: number } | null>(null);
+  const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success'>('idle');
 
   // Form inputs for new tournament
@@ -30,7 +33,6 @@ export default function App() {
 
   const handleRegisterOrLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Login is free, send them straight to dashboard
     setCurrentView('dashboard');
   };
 
@@ -58,24 +60,28 @@ export default function App() {
       setPaymentStatus('success');
       setTimeout(() => {
         if (pendingTournament) {
-          setTournaments(prev => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              name: pendingTournament.name,
-              type: pendingTournament.type,
-              price: pendingTournament.price,
-              date: new Date().toLocaleDateString(),
-              teamsCount: 0
-            }
-          ]);
+          const newT: Tournament = {
+            id: Date.now().toString(),
+            name: pendingTournament.name,
+            type: pendingTournament.type,
+            price: pendingTournament.price,
+            date: new Date().toLocaleDateString(),
+            teamsCount: 0
+          };
+          setTournaments(prev => [...prev, newT]);
+          setActiveTournament(newT);
         }
         setPendingTournament(null);
-        setCurrentView('dashboard');
+        setCurrentView('manage');
         setPaymentStatus('idle');
         setNewTitle('');
       }, 1200);
     }, 1000);
+  };
+
+  const handleOpenManage = (t: Tournament) => {
+    setActiveTournament(t);
+    setCurrentView('manage');
   };
 
   return (
@@ -108,10 +114,10 @@ export default function App() {
           )}
           {currentView !== 'landing' && (
             <button 
-              onClick={() => setCurrentView('landing')}
+              onClick={() => setCurrentView('dashboard')}
               className="text-xs text-slate-400 hover:text-white transition"
             >
-              ← Back to Home
+              ← Back to Dashboard
             </button>
           )}
         </div>
@@ -345,7 +351,72 @@ export default function App() {
         </main>
       )}
 
-      {/* 5. DASHBOARD */}
+      {/* 5. MANAGE TOURNAMENT / LEAGUE VIEW */}
+      {currentView === 'manage' && activeTournament && (
+        <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-10 space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-black text-white">{activeTournament.name}</h2>
+                <span className="text-[10px] uppercase font-mono px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold">{activeTournament.type}</span>
+              </div>
+              <p className="text-xs text-slate-400">Created: {activeTournament.date} • Paid tier: {activeTournament.price}</p>
+            </div>
+            <button 
+              onClick={() => setCurrentView('dashboard')}
+              className="bg-slate-800 hover:bg-slate-700 text-white text-xs px-4 py-2 rounded-xl transition font-bold"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-2">
+              <span className="text-xs text-slate-400">Teams / Participants</span>
+              <div className="text-2xl font-black text-white">{activeTournament.teamsCount} Teams</div>
+              <button 
+                onClick={() => {
+                  setTournaments(tournaments.map(t => t.id === activeTournament.id ? { ...t, teamsCount: t.teamsCount + 1 } : t));
+                  setActiveTournament({ ...activeTournament, teamsCount: activeTournament.teamsCount + 1 });
+                }}
+                className="text-xs text-indigo-400 font-bold hover:underline pt-2 block"
+              >
+                + Add simulated team
+              </button>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-2">
+              <span className="text-xs text-slate-400">Tournament Status</span>
+              <div className="text-2xl font-black text-emerald-400">Active / Live</div>
+              <span className="text-[10px] text-slate-500 block">Ready for match schedules</span>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-2">
+              <span className="text-xs text-slate-400">Share Link</span>
+              <div className="text-xs font-mono text-indigo-300 truncate pt-1">tournasnap.app/e/{activeTournament.id}</div>
+              <button onClick={() => alert('Link copied to clipboard!')} className="text-xs text-slate-400 hover:text-white pt-2 block underline">Copy public link</button>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tournament Management Tools</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                <div className="text-xs font-bold text-white">Generate Fixtures / Schedule</div>
+                <p className="text-[11px] text-slate-400">Automatically pair up registered teams into a tournament bracket or round-robin table.</p>
+                <button onClick={() => alert('Fixtures generated successfully!')} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">Generate Matches</button>
+              </div>
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                <div className="text-xs font-bold text-white">Live Scoreboard Control</div>
+                <p className="text-[11px] text-slate-400">Update scores live as matches are being played out in the venue.</p>
+                <button onClick={() => alert('Opening live score control...')} className="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">Open Scorekeeper</button>
+              </div>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* 6. DASHBOARD */}
       {currentView === 'dashboard' && (
         <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10 space-y-6">
           <div className="flex flex-wrap items-center justify-between border-b border-slate-800 pb-6 gap-4">
@@ -413,9 +484,14 @@ export default function App() {
                         <span className="text-sm font-bold text-white">{t.name}</span>
                         <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">{t.type}</span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Created: {t.date} • Paid: {t.price}</p>
+                      <p className="text-[11px] text-slate-500">Created: {t.date} • Paid: {t.price} • Teams: {t.teamsCount}</p>
                     </div>
-                    <button className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-xl transition">Manage</button>
+                    <button 
+                      onClick={() => handleOpenManage(t)}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded-xl font-bold transition shadow"
+                    >
+                      Manage
+                    </button>
                   </div>
                 ))}
               </div>
