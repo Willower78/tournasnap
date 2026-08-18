@@ -41,16 +41,13 @@ export default function App() {
     if (!newTitle.trim()) return;
 
     let price = '5 €';
-    let costNum = 5;
     if (newType === 'big') {
       price = '10 €';
-      costNum = 10;
     } else if (newType === 'league') {
       price = '19 €';
-      costNum = 19;
     }
 
-    setPendingTournament({ name: newTitle, type: newType, price, costNum });
+    setPendingTournament({ name: newTitle, type: newType, price, costNum: 0 });
     setCurrentView('checkout');
   };
 
@@ -72,9 +69,9 @@ export default function App() {
           setActiveTournament(newT);
         }
         setPendingTournament(null);
-        setCurrentView('manage');
         setPaymentStatus('idle');
         setNewTitle('');
+        setCurrentView('manage');
       }, 1200);
     }, 1000);
   };
@@ -344,7 +341,7 @@ export default function App() {
             {paymentStatus === 'success' && (
               <div className="text-center py-4 space-y-2 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl">
                 <Check className="w-6 h-6 text-emerald-400 mx-auto" />
-                <p className="text-xs font-bold text-emerald-300">Payment approved! Creating event...</p>
+                <p className="text-xs font-bold text-emerald-300">Payment approved! Opening setup...</p>
               </div>
             )}
           </div>
